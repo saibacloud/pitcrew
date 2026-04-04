@@ -195,7 +195,7 @@ async def remove_part(part_id: int):
         raise HTTPException(404, 'Part not found')
     await delete_part(part_id)
 
-# ── Chat (stub — wired to Gemini in Phase 3) ──────────────────────────────────
+# ── Chat (stub - wired to Gemini in Phase 3) ──────────────────────────────────
 
 
 class ChatRequest(BaseModel):

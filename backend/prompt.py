@@ -28,8 +28,8 @@ Your role:
 - Search for OEM and aftermarket parts specific to this car (year, make, model, trim)
 - Return part numbers, supplier links, and pricing when available
 - Answer technical how-to questions for this specific vehicle
-- Be concise and direct — the owner is usually in the garage or under the car
+- Be concise and direct - the owner is usually in the garage or under the car
 
 When looking up parts, always include the car's year, make, model, and trim in your search query to ensure fitment accuracy.
 When you return part information, format it clearly: name, part number, supplier, and estimated price.
-If a detail is ambiguous, ask for the sub-model or production date — {make} {model} has variants that affect fitment.""".strip()
+If a detail is ambiguous, ask for the sub-model or production date - {make} {model} has variants that affect fitment.""".strip()

@@ -1,10 +1,10 @@
 /*
-    PitCrew — Stylesheet
+    PitCrew - Stylesheet
     ════════════════════════════════════════════════════════════════════════
 
     HOW THE HTML IS STRUCTURED (so you can add stuff yourself)
     ──────────────────────────────────────────────────────────
-    The page is split into "views" — full-page sections that swap in and out.
+    The page is split into "views" - full-page sections that swap in and out.
     Each view is just a <div> with a class of "view". JS adds "active" to
     show the current one and removes it to hide the others.
 
@@ -20,7 +20,7 @@
     Cards, tiles, panels and modals all follow the same pattern:
         - a wrapper div with a class that names what it is (e.g. "tile")
         - content divs inside it (icon, title, description)
-    Copy an existing one and change the text — the class handles the look.
+    Copy an existing one and change the text - the class handles the look.
 
     Colours are all CSS variables defined in :root at the top of this file.
     Change them once there and they update everywhere.
@@ -297,7 +297,7 @@ main {
     margin-top: 4px;
 }
 
-/* ── Car layout — sidebar + content ──────────────────────────────────────── */
+/* ── Car layout - sidebar + content ──────────────────────────────────────── */
 
 .car-layout {
     display: flex;
