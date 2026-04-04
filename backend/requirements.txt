@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+aiosqlite
+python-multipart
+google-generativeai
+pillow

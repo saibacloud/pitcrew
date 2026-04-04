@@ -1,0 +1,893 @@
+/*
+    PitCrew — Stylesheet
+    ════════════════════════════════════════════════════════════════════════
+
+    HOW THE HTML IS STRUCTURED (so you can add stuff yourself)
+    ──────────────────────────────────────────────────────────
+    The page is split into "views" — full-page sections that swap in and out.
+    Each view is just a <div> with a class of "view". JS adds "active" to
+    show the current one and removes it to hide the others.
+
+    Inside a view, things live inside a <main> tag which centres and pads
+    the content. If you want to drop a new block of content into a view,
+    just add a <div> inside that <main>. Example:
+
+        <main>
+            <div class="section-heading">My New Section</div>
+            <div>Whatever you want in here</div>
+        </main>
+
+    Cards, tiles, panels and modals all follow the same pattern:
+        - a wrapper div with a class that names what it is (e.g. "tile")
+        - content divs inside it (icon, title, description)
+    Copy an existing one and change the text — the class handles the look.
+
+    Colours are all CSS variables defined in :root at the top of this file.
+    Change them once there and they update everywhere.
+
+    ════════════════════════════════════════════════════════════════════════
+*/
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg: #ffffff;
+    --surface: #f5f5f5;
+    --surface-2: #ebebeb;
+    --border: #e0e0e0;
+    --accent: #151414;
+    --accent-dim: rgba(21, 20, 20, 0.06);
+    --text: #151414;
+    --muted: #767676;
+    --radius: 10px;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+/* ── Views ────────────────────────────────────────────────────────────────── */
+
+.view {
+    display: none;
+    min-height: 100dvh;
+    flex-direction: column;
+}
+
+.view.active {
+    display: flex;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.logo {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text);
+    text-transform: uppercase;
+}
+
+.logo em {
+    color: var(--accent);
+    font-style: normal;
+}
+
+.car-subheader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 13px;
+}
+
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 7px;
+    font-family: inherit;
+    transition: color 0.15s, background 0.15s;
+}
+
+.back-btn:hover {
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+.header-right {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.header-right strong {
+    color: var(--text);
+}
+
+/* ── Main ─────────────────────────────────────────────────────────────────── */
+
+main {
+    flex: 1;
+    padding: 36px 28px;
+    max-width: 1080px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* ── Garage ───────────────────────────────────────────────────────────────── */
+
+.section-heading {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 18px;
+}
+
+.section-heading span {
+    color: var(--text);
+    margin-left: 8px;
+    letter-spacing: 0;
+    font-weight: 400;
+    text-transform: none;
+}
+
+.car-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 280px));
+    gap: 14px;
+    justify-content: center;
+}
+
+.car-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 20px 18px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.1s;
+}
+
+.car-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.3;
+    transition: opacity 0.15s;
+}
+
+.car-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.car-card:hover::before {
+    opacity: 0.8;
+}
+
+.car-card-actions {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.car-card:hover .car-card-actions {
+    opacity: 1;
+}
+
+.car-card-actions button {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: color 0.1s, border-color 0.1s;
+}
+
+.car-card-actions button:hover {
+    color: var(--text);
+    border-color: var(--text);
+}
+
+.car-nickname {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding-right: 60px;
+    color: var(--text);
+}
+
+.car-spec {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.add-car-card {
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 104px;
+    color: var(--muted);
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.add-car-card:hover {
+    border-color: var(--text);
+    color: var(--text);
+}
+
+.add-car-card .plus {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.add-car-card .add-label {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* ── Car Dashboard ────────────────────────────────────────────────────────── */
+
+.dash-meta {
+    margin-bottom: 0;
+}
+
+.dash-meta h2 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.dash-meta p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+}
+
+/* ── Car layout — sidebar + content ──────────────────────────────────────── */
+
+.car-layout {
+    display: flex;
+    gap: 0;
+    flex: 1;
+}
+
+.car-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+}
+
+.car-sidebar-header {
+    padding: 0 18px 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.car-sidebar-header h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.car-sidebar-header p {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.car-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 18px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    border-left: 2px solid transparent;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.car-nav-item:hover {
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+.car-nav-item.active {
+    color: var(--text);
+    border-left-color: var(--accent);
+    background: var(--surface-2);
+}
+
+.car-nav-item .nav-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.car-nav-item .nav-badge {
+    margin-left: auto;
+    font-size: 9px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--accent-dim);
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    border: 1px solid var(--border);
+}
+
+.car-content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg);
+}
+
+.car-section {
+    display: none;
+    padding: 32px 36px;
+    max-width: 760px;
+}
+
+.car-section.active {
+    display: block;
+}
+
+.car-section-heading {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ── Car photo upload ─────────────────────────────────────────────────────── */
+
+.car-photo-wrap {
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+
+.car-photo-frame {
+    width: 180px;
+    height: 120px;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.15s;
+}
+
+.car-photo-frame:hover {
+    border-color: var(--accent);
+}
+
+.car-photo-delete {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.15s, transform 0.1s;
+    padding: 0;
+}
+
+.car-photo-delete:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+.car-photo-frame img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.car-photo-placeholder {
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+    padding: 12px;
+}
+
+.car-photo-placeholder span {
+    display: block;
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.car-photo-input {
+    display: none;
+}
+
+.car-photo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+}
+
+.car-photo-actions p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+
+.empty {
+    text-align: center;
+    padding: 52px 24px;
+    color: var(--muted);
+}
+
+.empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+.empty p {
+    font-size: 13px;
+}
+
+/* ── Journal tabs ────────────────────────────────────────────────────────────── */
+
+.journal-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.journal-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+
+.journal-tab:hover {
+    color: var(--text);
+}
+
+.journal-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+.journal-tab-content {
+    display: none;
+}
+
+.journal-tab-content.active {
+    display: block;
+}
+
+/* ── Photo tabs ────────────────────────────────────────────────────────────── */
+
+.photo-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.photo-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+
+.photo-tab:hover {
+    color: var(--text);
+}
+
+.photo-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+.photo-tab-content {
+    display: none;
+}
+
+.photo-tab-content.active {
+    display: block;
+}
+
+
+/* ── Other tabs ────────────────────────────────────────────────────────────── */
+
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group.full {
+    grid-column: 1 / -1;
+}
+
+.form-group label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+    background: #f5f5f5;
+    border: 1px solid #d0d0d0;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    width: 100%;
+    min-width: 0;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+    border-color: var(--accent);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 88px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 18px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+.btn {
+    padding: 8px 18px;
+    border-radius: 7px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+    transition: opacity 0.15s;
+}
+
+.btn:hover {
+    opacity: 0.75;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #ffffff;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid #d0d0d0;
+}
+
+/* ── Modal ────────────────────────────────────────────────────────────────── */
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(5px);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: min(460px, calc(100vw - 32px));
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.modal h3 {
+    font-size: 17px;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+
+#toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    z-index: 200;
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    main {
+        padding: 24px 16px;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-group.full {
+        grid-column: 1;
+    }
+
+    .app-header {
+        padding: 12px 16px;
+    }
+
+    .car-sidebar {
+        width: 56px;
+    }
+
+    .car-sidebar-header {
+        display: none;
+    }
+
+    .car-nav-item .nav-label {
+        display: none;
+    }
+
+    .car-nav-item {
+        justify-content: center;
+        padding: 12px;
+        border-left: none;
+        border-bottom: 2px solid transparent;
+    }
+
+    .car-nav-item.active {
+        border-left: none;
+        border-bottom-color: var(--accent);
+    }
+
+    .car-section {
+        padding: 20px 16px;
+    }
+
+    .car-photo-wrap {
+        flex-direction: column;
+    }
+
+    .car-photo-frame {
+        width: 100%;
+        height: 160px;
+    }
+}
+
+/* ── Cart ────────────────────────────────────────────────────────────────── */
+
+.cart-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cart-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+
+.cart-tab:hover {
+    color: var(--text);
+}
+
+.cart-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
+.cart-tab-content {
+    display: none;
+}
+
+.cart-tab-content.active {
+    display: block;
+}
+
+.parts-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.parts-table th {
+    text-align: left;
+    padding: 8px 12px;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.parts-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text);
+}
+
+.parts-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.parts-table tfoot td {
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+
+.parts-table-empty {
+    color: var(--muted);
+    padding: 24px 12px;
+}
+
+.parts-table a {
+    color: var(--text);
+    text-decoration: none;
+}
+
+.parts-table a:hover {
+    text-decoration: underline;
+}
+
+.parts-table-actions {
+    white-space: nowrap;
+    text-align: right;
+}
+
+.parts-table-actions .btn {
+    padding: 3px 10px;
+    font-size: 12px;
+}
