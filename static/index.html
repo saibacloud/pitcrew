@@ -157,8 +157,7 @@
                     <!-- Research Tab -->
                     <div class="section-tab-content active" id="journal-research">
                         <div class="journal-add-form">
-                            <input type="text" id="research-input"
-                                placeholder="What do you want to research? e.g. torque settings for M54 head bolts"
+                            <input type="text" id="research-input" placeholder="Search for..."
                                 onkeydown="if(event.key==='Enter') runResearch()" />
                             <button class="btn btn-primary" id="research-btn" onclick="runResearch()">Search</button>
                         </div>
@@ -171,8 +170,7 @@
                     <!-- Converse Tab -->
                     <div class="section-tab-content" id="journal-converse">
                         <div class="journal-add-form">
-                            <input type="text" id="converse-input"
-                                placeholder="What is the conversation topic?"
+                            <input type="text" id="converse-input" placeholder="Search for..."
                                 onkeydown="if(event.key==='Enter') addJournalEntry('converse')" />
                             <button class="btn btn-primary" onclick="addJournalEntry('converse')">Converse</button>
                         </div>
@@ -293,8 +291,7 @@
                     <div class="car-section-heading">Documents</div>
                     <!-- AI Ask bar -->
                     <div class="journal-add-form" style="margin-bottom:16px">
-                        <input type="text" id="doc-ask-input"
-                            placeholder="Ask a question about selected documents e.g. torque spec for front control arm bolts"
+                        <input type="text" id="doc-ask-input" placeholder="Search for..."
                             onkeydown="if(event.key==='Enter') askDocuments()" />
                         <button class="btn btn-primary" id="doc-ask-btn" onclick="askDocuments()" disabled>Ask AI</button>
                     </div>

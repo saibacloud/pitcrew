@@ -858,8 +858,7 @@ main {
 
     .car-photo-frame {
         width: 100%;
-        max-width: 340px;
-        height: 160px;
+        height: 320px;
     }
 
     /* ── Tables ───────────────────────────────────────────────────────────── */
@@ -939,6 +938,10 @@ main {
         align-items: stretch;
     }
 
+    .journal-add-form input {
+        width: 100%;
+    }
+
     .journal-add-form .btn {
         width: 100%;
         justify-content: center;
@@ -948,8 +951,15 @@ main {
         display: none;
     }
 
+    #section-journal .parts-table,
+    #section-journal .parts-table tbody {
+        display: block;
+        width: 100%;
+    }
+
     #section-journal .parts-table tr {
         display: block;
+        width: 100%;
         padding: 10px 0;
         border-bottom: 1px solid var(--border);
     }
@@ -960,6 +970,9 @@ main {
 
     #section-journal .parts-table td {
         display: block;
+        width: 100%;
+        max-width: none;
+        white-space: normal;
         padding: 2px 0;
         border: none;
     }
@@ -969,20 +982,22 @@ main {
     }
 
     #section-journal .journal-text {
-        white-space: normal;
         word-break: break-word;
         padding-bottom: 6px;
     }
 
-    #section-journal .parts-table-actions {
+    #section-journal .parts-table td.parts-table-actions {
         display: flex;
-        gap: 6px;
+        gap: 8px;
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 8px;
     }
 
-    #section-journal .parts-table-actions .btn {
-        flex: 1;
-        text-align: center;
-        justify-content: center;
+    #section-journal .parts-table td.parts-table-actions .btn {
+        flex: none;
+        padding: 4px 12px;
+        font-size: 12px;
     }
 
     /* ── Confirm actions stack on mobile ─────────────────────────────────── */
@@ -1251,7 +1266,7 @@ main {
 .journal-add-form input,
 .journal-add-form textarea {
     flex: 1;
-    padding: 8px 12px;
+    padding: 18px 12px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 8px;
