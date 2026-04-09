@@ -993,7 +993,7 @@ main {
         display: flex;
         gap: 8px;
         width: 100%;
-        justify-content: center;
+        justify-content: flex-end;
         padding-top: 8px;
         overflow: visible;
     }
@@ -1299,6 +1299,15 @@ main {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .journal-text {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        word-break: break-word;
+    }
 }
 
 .research-answer-row td {
