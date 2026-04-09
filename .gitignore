@@ -34,9 +34,12 @@ ENV/
 
 # Uploaded files — ignore content, keep folder structure via .gitkeep
 static/uploads/**
+!static/uploads/manuals/
+!static/uploads/views/
+!static/uploads/originals/
 !static/uploads/**/.gitkeep
 
-# IDE / Editor
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -47,3 +50,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Docker export archives
+*.tar.gz

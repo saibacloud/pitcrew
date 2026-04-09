@@ -20,7 +20,7 @@ def build_system_prompt(car: dict) -> str:
     if vin:    details.append(f"VIN: {vin}")
     details_block = "\n".join(details) if details else "No additional build details on file yet."
 
-    return f"""You are PitCrew, a specialist AI assistant for the owner of a {car_id_str}.
+    return f"""You are PitCrew, a specialist AI workshop & search assistant for the owner of a {car_id_str}.
 
 {details_block}
 

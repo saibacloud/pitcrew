@@ -1,0 +1,24 @@
+services:
+  pitcrew:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # SQLite DB — survives container restarts and rebuilds
+      - pitcrew-data:/app/data
+      # Uploaded files (car photos, manuals, views)
+      - pitcrew-uploads:/app/static/uploads
+    env_file: .env
+    environment:
+      - PITCREW_DB_PATH=/app/data/pitcrew.db
+    restart: unless-stopped
+    # ── Traefik labels ───────────────────────────────────────────────────────
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pitcrew.rule=Host(`pitcrew.lan`)"
+      - "traefik.http.routers.pitcrew.entrypoints=web"
+      - "traefik.http.services.pitcrew.loadbalancer.server.port=8000"
+
+volumes:
+  pitcrew-data:
+  pitcrew-uploads:

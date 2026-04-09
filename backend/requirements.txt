@@ -2,5 +2,8 @@ fastapi
 uvicorn[standard]
 aiosqlite
 python-multipart
-google-generativeai
+google-genai
+python-dotenv
 pillow
+python-docx
+pypdf

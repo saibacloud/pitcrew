@@ -1,30 +1,5 @@
 /*
-    PitCrew - Stylesheet
-    ════════════════════════════════════════════════════════════════════════
-
-    HOW THE HTML IS STRUCTURED (so you can add stuff yourself)
-    ──────────────────────────────────────────────────────────
-    The page is split into "views" - full-page sections that swap in and out.
-    Each view is just a <div> with a class of "view". JS adds "active" to
-    show the current one and removes it to hide the others.
-
-    Inside a view, things live inside a <main> tag which centres and pads
-    the content. If you want to drop a new block of content into a view,
-    just add a <div> inside that <main>. Example:
-
-        <main>
-            <div class="section-heading">My New Section</div>
-            <div>Whatever you want in here</div>
-        </main>
-
-    Cards, tiles, panels and modals all follow the same pattern:
-        - a wrapper div with a class that names what it is (e.g. "tile")
-        - content divs inside it (icon, title, description)
-    Copy an existing one and change the text - the class handles the look.
-
-    Colours are all CSS variables defined in :root at the top of this file.
-    Change them once there and they update everywhere.
-
+    PitCrew 
     ════════════════════════════════════════════════════════════════════════
 */
 
@@ -297,7 +272,7 @@ main {
     margin-top: 4px;
 }
 
-/* ── Car layout - sidebar + content ──────────────────────────────────────── */
+/* ── Car layout — sidebar + content ──────────────────────────────────────── */
 
 .car-layout {
     display: flex;
@@ -391,7 +366,6 @@ main {
 .car-section {
     display: none;
     padding: 32px 36px;
-    max-width: 760px;
 }
 
 .car-section.active {
@@ -412,14 +386,11 @@ main {
 
 .car-photo-wrap {
     margin-bottom: 24px;
-    display: flex;
-    align-items: flex-start;
-    gap: 20px;
 }
 
 .car-photo-frame {
-    width: 180px;
-    height: 120px;
+    width: 220px;
+    height: 165px;
     flex-shrink: 0;
     border-radius: var(--radius);
     border: 1px solid var(--border);
@@ -515,92 +486,24 @@ main {
     font-size: 13px;
 }
 
-/* ── Journal tabs ────────────────────────────────────────────────────────────── */
+/* ── Section tabs (shared) — full definition in responsive block below ────── */
 
-.journal-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-}
-
-.journal-tab {
-    padding: 10px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-    font-family: inherit;
-}
-
-.journal-tab:hover {
-    color: var(--text);
-}
-
-.journal-tab.active {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-}
-
-.journal-tab-content {
+.section-tab-content {
     display: none;
 }
 
-.journal-tab-content.active {
+.section-tab-content.active {
     display: block;
 }
 
-/* ── Photo tabs ────────────────────────────────────────────────────────────── */
-
-.photo-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-}
-
-.photo-tab {
-    padding: 10px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-    font-family: inherit;
-}
-
-.photo-tab:hover {
-    color: var(--text);
-}
-
-.photo-tab.active {
-    color: var(--text);
-    border-bottom-color: var(--accent);
-}
-
-.photo-tab-content {
-    display: none;
-}
-
-.photo-tab-content.active {
-    display: block;
-}
-
-
-/* ── Other tabs ────────────────────────────────────────────────────────────── */
+/* ── Other ────────────────────────────────────────────────────────────────── */
 
 
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px;
+    max-width: 720px;
 }
 
 .form-group {
@@ -685,6 +588,41 @@ main {
 
 /* ── Modal ────────────────────────────────────────────────────────────────── */
 
+.prompt-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 22px;
+}
+
+.prompt-fields label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 2px;
+    display: block;
+}
+
+.prompt-fields input,
+.prompt-fields textarea {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+}
+
+.prompt-fields input:focus,
+.prompt-fields textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .modal-overlay {
     display: none;
     position: fixed;
@@ -716,6 +654,45 @@ main {
     margin-bottom: 20px;
 }
 
+.confirm-modal {
+    max-width: 380px;
+}
+
+.confirm-message {
+    font-size: 15px;
+    color: var(--text);
+    margin: 0 0 22px;
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+
+.confirm-actions .btn {
+    min-width: 80px;
+    justify-content: center;
+}
+
+.btn-danger {
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-danger:hover {
+    background: #a93226;
+}
+
 
 /* ── Toast ────────────────────────────────────────────────────────────────── */
 
@@ -741,8 +718,66 @@ main {
     transform: translateY(0);
 }
 
+/* ── Table scroll wrapper ─────────────────────────────────────────────────── */
+
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+}
+
+/* ── Section tabs — horizontal scroll when tabs overflow ─────────────────── */
+
+.section-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 0;
+}
+
+.section-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.section-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.section-tab:hover {
+    color: var(--text);
+}
+
+.section-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
+/* Tablet (≤ 900px) */
+@media (max-width: 900px) {
+    .car-section {
+        padding: 24px 24px;
+    }
+
+}
+
+/* Mobile (640px and below) */
 @media (max-width: 640px) {
     main {
         padding: 24px 16px;
@@ -760,81 +795,384 @@ main {
         padding: 12px 16px;
     }
 
+    /* ── Sidebar becomes fixed bottom tab bar ─────────────────────────────── */
+
+    .car-layout {
+        flex-direction: column;
+    }
+
     .car-sidebar {
-        width: 56px;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        padding: 0;
+        z-index: 50;
+        background: var(--bg);
     }
 
     .car-sidebar-header {
         display: none;
     }
 
-    .car-nav-item .nav-label {
-        display: none;
+    .car-nav-item {
+        flex: 1;
+        justify-content: center;
+        align-items: center;
+        padding: 10px 2px;
+        border-left: none;
+        border-top: 2px solid transparent;
+        border-bottom: none;
+        min-width: 0;
+        text-align: center;
     }
 
-    .car-nav-item {
-        justify-content: center;
-        padding: 12px;
-        border-left: none;
-        border-bottom: 2px solid transparent;
+    .car-nav-item .nav-label {
+        display: block;
+        font-size: 10px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .car-nav-item.active {
         border-left: none;
-        border-bottom-color: var(--accent);
+        border-top-color: var(--accent);
+    }
+
+    /* Content clears the fixed tab bar */
+    .car-content {
+        padding-bottom: 56px;
     }
 
     .car-section {
-        padding: 20px 16px;
+        padding: 16px 12px;
     }
 
-    .car-photo-wrap {
-        flex-direction: column;
-    }
+    /* ── Car Info ─────────────────────────────────────────────────────────── */
 
     .car-photo-frame {
         width: 100%;
+        max-width: 340px;
         height: 160px;
+    }
+
+    /* ── Tables ───────────────────────────────────────────────────────────── */
+
+    .parts-table th,
+    .parts-table td {
+        padding: 8px 8px;
+        font-size: 12px;
+    }
+
+    .status-select {
+        font-size: 11px;
+        padding: 3px 5px;
+    }
+
+    /* ── Photo Pins ───────────────────────────────────────────────────────── */
+
+    .view-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 200px));
+    }
+
+    .view-thumb-img {
+        height: 110px;
+    }
+
+    .pin-list-bottom {
+        flex-wrap: wrap;
+    }
+
+    .view-card-actions {
+        flex-wrap: wrap;
+    }
+
+    /* ── Section tabs compact ─────────────────────────────────────────────── */
+
+    .section-tab {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    .view-img-container img {
+        max-height: 300px;
+    }
+
+    /* ── Modals as bottom sheets ──────────────────────────────────────────── */
+
+    .modal {
+        width: 100vw;
+        max-width: 100vw;
+        border-radius: var(--radius) var(--radius) 0 0;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        margin: 0;
+        padding: 24px 16px;
+    }
+
+    .modal-overlay {
+        align-items: flex-end;
+    }
+
+    /* ── Compact subheader ────────────────────────────────────────────────── */
+
+    .car-subheader {
+        padding: 6px 12px;
+    }
+
+    .header-right {
+        display: none;
+    }
+
+    /* ── Journal ──────────────────────────────────────────────────────────── */
+
+    .journal-add-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .journal-add-form .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    #section-journal .parts-table thead {
+        display: none;
+    }
+
+    #section-journal .parts-table tr {
+        display: block;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+    }
+
+    #section-journal .parts-table tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    #section-journal .parts-table td {
+        display: block;
+        padding: 2px 0;
+        border: none;
+    }
+
+    #section-journal .journal-date {
+        width: auto;
+    }
+
+    #section-journal .journal-text {
+        white-space: normal;
+        word-break: break-word;
+        padding-bottom: 6px;
+    }
+
+    #section-journal .parts-table-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    #section-journal .parts-table-actions .btn {
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+    }
+
+    /* ── Confirm actions stack on mobile ─────────────────────────────────── */
+
+    .confirm-actions {
+        flex-direction: column-reverse;
+        gap: 8px;
+    }
+
+    .confirm-actions .btn,
+    .confirm-actions .btn-danger {
+        width: 100%;
+        justify-content: center;
+        text-align: center;
     }
 }
 
-/* ── Cart ────────────────────────────────────────────────────────────────── */
+/* ── View photo grid (Photo Pins section) ─────────────────────────────────── */
 
-.cart-tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    border-bottom: 1px solid var(--border);
+.view-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 280px));
+    gap: 14px;
 }
 
-.cart-tab {
-    padding: 10px 16px;
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
+/* ── Manual grid ─────────────────────────────────────────────────────────── */
+
+.manual-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+}
+
+.manual-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 16px 16px;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.1s;
+    text-align: center;
+}
+
+.manual-card.selected {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+}
+
+.manual-card.selected::before {
+    opacity: 1;
+}
+
+.manual-card-check {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--muted);
+    transition: color 0.15s;
+    z-index: 2;
+}
+
+.manual-card:hover .manual-card-check,
+.manual-card.selected .manual-card-check {
+    color: var(--accent);
+}
+
+.manual-card.selected .check-mark {
+    opacity: 1 !important;
+}
+
+.manual-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.3;
+    transition: opacity 0.15s;
+}
+
+.manual-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.manual-card:hover::before {
+    opacity: 0.8;
+}
+
+.manual-card-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.manual-card:hover .manual-card-actions {
+    opacity: 1;
+}
+
+.manual-card-actions button {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
     font-family: inherit;
+    transition: color 0.1s, border-color 0.1s;
 }
 
-.cart-tab:hover {
+.manual-card-actions button:hover {
     color: var(--text);
+    border-color: var(--text);
 }
 
-.cart-tab.active {
+.manual-card-title {
+    font-size: 13px;
+    font-weight: 600;
     color: var(--text);
-    border-bottom-color: var(--accent);
+    word-break: break-word;
+    margin-bottom: 4px;
 }
 
-.cart-tab-content {
-    display: none;
+.manual-card-date {
+    font-size: 11px;
+    color: var(--muted);
 }
 
-.cart-tab-content.active {
-    display: block;
+/* ── PDF Viewer ───────────────────────────────────────────────────────────── */
+
+.pdf-viewer-overlay {
+    position: fixed;
+    inset: 0;
+    background: #1a1a1a;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+}
+
+.pdf-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 20px;
+    background: #111;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.pdf-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pdf-close-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: #fff;
+    border-radius: 6px;
+    padding: 5px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: background 0.15s;
+}
+
+.pdf-close-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.pdf-frame {
+    flex: 1;
+    border: none;
+    width: 100%;
 }
 
 .parts-table {
@@ -857,6 +1195,10 @@ main {
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
     color: var(--text);
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .parts-table tbody tr:last-child td {
@@ -890,4 +1232,358 @@ main {
 .parts-table-actions .btn {
     padding: 3px 10px;
     font-size: 12px;
+}
+
+/* ── Journal ──────────────────────────────────────────────────────────────── */
+
+.journal-add-form {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.journal-add-form--col {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.journal-add-form input,
+.journal-add-form textarea {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.journal-add-form textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.journal-date {
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+    width: 90px;
+}
+
+.journal-text {
+    max-width: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.research-answer-row td {
+    padding: 4px 0 12px;
+}
+
+.research-answer {
+    padding: 14px 18px;
+    background: var(--surface-2);
+    border-left: 3px solid var(--accent, #e36c2d);
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--text);
+    white-space: normal;
+    word-break: break-word;
+}
+
+.research-answer p {
+    margin: 0 0 10px;
+}
+
+.research-answer p:last-child {
+    margin-bottom: 0;
+}
+
+.research-answer ul {
+    margin: 6px 0;
+    padding-left: 20px;
+}
+
+.research-answer strong {
+    font-weight: 600;
+}
+
+/* ── View cards (Photo Pins) ────────────────────────────────────────────────── */
+
+.view-card {
+    padding: 0;
+    overflow: hidden;
+    cursor: default;
+}
+
+.view-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* ── View thumbnail grid cards ───────────────────────────────────────────── */
+
+.view-thumb-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.1s;
+    max-width: 280px;
+    width: 100%;
+}
+
+.view-thumb-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.3;
+    transition: opacity 0.15s;
+}
+
+.view-thumb-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+}
+
+.view-thumb-card:hover::before {
+    opacity: 0.8;
+}
+
+.view-thumb-card:hover .manual-card-actions {
+    opacity: 1;
+}
+
+.view-thumb-img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block;
+}
+
+.view-thumb-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.view-pin-badge {
+    background: var(--accent-dim);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.view-back-btn {
+    align-self: flex-start;
+    margin-bottom: 4px;
+}
+
+/* ── Photo Pin overlay ───────────────────────────────────────────────────── */
+
+.view-card-wrap {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.view-img-container {
+    position: relative;
+    display: block;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: crosshair;
+    user-select: none;
+    max-width: 520px;
+}
+
+.view-img-container img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 460px;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.pin-overlay {
+    position: absolute;
+    inset: 0;
+}
+
+.pin-marker {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    transform: translate(-50%, -50%);
+    background: var(--accent);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    transition: transform 0.1s, box-shadow 0.1s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+
+.pin-marker:hover {
+    transform: translate(-50%, -50%) scale(1.25);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+
+.pin-num {
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.view-card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.pin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pin-list-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font-size: 13px;
+}
+
+.pin-list-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pin-list-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 28px;
+}
+
+.pin-list-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.pin-list-item .pin-num {
+    width: 20px;
+    height: 20px;
+    min-width: 20px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    pointer-events: auto;
+}
+
+.pin-list-item .pin-label {
+    font-weight: 600;
+}
+
+.pin-list-item .pin-notes {
+    font-size: 12px;
+    color: var(--muted);
+    flex: 1;
+    min-width: 0;
+}
+
+.pin-list-item .btn {
+    padding: 3px 8px;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.pin-research-result {
+    background: var(--surface-2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 10px 14px;
+    margin: 4px 0 8px 32px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+}
+
+.pin-research-loading {
+    color: var(--text-2);
+    font-style: italic;
+}
+
+/* ── Parts status select ─────────────────────────────────────────────────── */
+
+.status-select {
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.status-select:hover,
+.status-select:focus {
+    border-color: var(--accent);
+    outline: none;
+}
+
+.status-select.status-wishlist  { background: var(--surface); }
+.status-select.status-ordered   { background: #fffde7; border-color: #f5c842; color: #7a6200; }
+.status-select.status-received  { background: #e8f5e9; border-color: #66bb6a; color: #1b5e20; }
+.status-select.status-installed { background: #e3f2fd; border-color: #42a5f5; color: #0d47a1; }
+
+/* ── Manual tab hint ─────────────────────────────────────────────────────── */
+
+.manual-tab-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
 }
