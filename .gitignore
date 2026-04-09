@@ -32,7 +32,7 @@ ENV/
 *.db
 *.db-journal
 
-# Uploaded files — ignore content, keep folder structure via .gitkeep
+# Uploaded files
 static/uploads/**
 !static/uploads/manuals/
 !static/uploads/views/
