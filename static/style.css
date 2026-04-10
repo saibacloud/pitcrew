@@ -853,6 +853,7 @@ main {
         border-right: none;
         border-top: 1px solid var(--border);
         padding: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
         z-index: 50;
         background: var(--bg);
     }
@@ -886,9 +887,9 @@ main {
         border-top-color: var(--accent);
     }
 
-    /* Content clears the fixed tab bar */
+    /* Content clears the fixed tab bar + iOS safe area */
     .car-content {
-        padding-bottom: 56px;
+        padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
     }
 
     .car-section {
