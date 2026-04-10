@@ -26,6 +26,7 @@ docker compose up --build
 docker build -t pitcrew:latest .
 docker stack deploy -c docker-compose.yml pitcrew
 ```
+> **Note:** SQLite doesn't support concurrent writes from separate processes, so this runs as a single replica only. TLDR; single node in docker, hence the constraint to a single host in the compose file.
 
 The app serves on port 8000.
 
@@ -98,4 +99,5 @@ Two Docker volumes keep your data safe across rebuilds:
 - `pitcrew-data` - the SQLite database
 - `pitcrew-uploads` - photos and documents
 
-> **Note:** SQLite doesn't support concurrent writes from separate processes, so this runs as a single replica only. TLDR; single node in docker, hence the constraint to a single host in the compose file.
+
+
