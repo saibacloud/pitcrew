@@ -186,6 +186,12 @@ export function initManuals() {
     });
     document.getElementById('doc-ask-btn').addEventListener('click', askDocuments);
 
+    // Close AI response
+    document.getElementById('doc-ask-close-btn').addEventListener('click', () => {
+        document.getElementById('doc-ask-result').style.display = 'none';
+        setLastDocAnswer(null);
+    });
+
     // PDF close
     document.querySelector('.pdf-close-btn').addEventListener('click', closePdfViewer);
 

@@ -64,6 +64,12 @@ export function renderMarkdown(str) {
         .replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
 }
 
+// ── Service worker ──────────────────────────────────────────────────────────
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+
 // ── Boot ────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {

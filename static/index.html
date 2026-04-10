@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PitCrew</title>
     <link rel="stylesheet" href="/static/style.css" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <meta name="theme-color" content="#151414" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="PitCrew" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png" />
 </head>
 
 <body>
@@ -55,7 +61,7 @@
                     <span class="nav-label">Cart</span>
                 </div>
                 <div class="car-nav-item" data-section="section-manual" data-load="manuals">
-                    <span class="nav-label">Manual</span>
+                    <span class="nav-label">Documents</span>
                 </div>
             </nav>
 
@@ -244,8 +250,9 @@
                     </div>
                     <div id="doc-ask-result" style="display:none;margin-bottom:20px">
                         <div class="research-answer" id="doc-ask-answer"></div>
-                        <div style="margin-top:10px">
+                        <div style="margin-top:10px;display:flex;gap:8px">
                             <button class="btn btn-ghost" id="doc-ask-save-btn">Save to Journal</button>
+                            <button class="btn btn-ghost" id="doc-ask-close-btn">Close</button>
                         </div>
                     </div>
                     <div class="section-tabs">
