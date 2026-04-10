@@ -1,108 +1,101 @@
-# PitCrew - Project Car Manager
+# PitCrew
 
-Garage-first project car manager with an AI layer for parts research, search grounding, and hands-free chat. Cars are the central context of the whole app - everything is scoped to whichever car you're working on. Built around a **2006 BMW E46 330ci MSport**.
+Welcome to PitCrew, a garage workshop app for managing your project cars. 
+Everything is scoped to your car, whatever you're working on, whether its researching, finding parts, uploading photos, adding in reference documents, PitCrew augments your capability by using an AI layer (Gemini) as a superpowered search engine, that with your project car context, allows you to ask questions and get answers specific to your year/make/model/trim.
 
-## Stack
+PitCrew is a web app, however works as a PWA so you can save it to your phone home screen.
+
+## Getting started
+
+Set your Gemini API key in `.env`:
+
+```
+GENAI_API_KEY=your_key_here
+```
+
+Then run it however suits your setup:
+
+```sh
+# Local dev
+uvicorn backend.app:app --reload
+
+# Docker (you will need to change image to build in the compose file)
+docker compose up --build
+
+# I personally deploy as a constrained node on my Docker Swarm
+docker build -t pitcrew:latest .
+docker stack deploy -c docker-compose.yml pitcrew
+```
+
+The app serves on port 8000.
+
+## How it works
+
+The **Garage** is your landing page - a grid of your cars. Click one to open it up.
+
+Once inside a car, you've got five sections to work with:
+
+- **Car Info** - the basics: year, make, model, trim, engine, VIN, colour/paint code, notes, and a photo. This is the context that feeds every AI query.
+- **Journal** - your research log. Ask a question, Gemini answers it with your car's context baked in. You can also save freeform notes and document search results here. Everything is kept so you can come back to it.
+- **Photo Pins** - upload photos from any angle (front, sides, rear, engine bay, underside, interior). Click anywhere on the photo to drop a pin, label the component, and ask AI to research that specific part. The answer sticks to the pin so you don't lose it.
+- **Cart** - a running parts list. Name, part number, price, supplier link, category, and status tracking from wishlist through to installed.
+- **Documents** - upload workshop manuals (PDF/DOCX), reference images, or any other files. Tick the ones you want, type a question, and the AI searches through them for the answer.
+
+## Tech stack
 
 | Layer | Tech |
 |-------|------|
-| AI | Gemini 2.0 Flash - native `google_search` grounding |
-| Backend | FastAPI |
-| STT / VAD | faster-whisper + Silero |
-| TTS | piper (local, voice) |
-| Database | SQLite via aiosqlite |
-| Frontend | Single-file HTML/CSS/JS - served directly by FastAPI |
-| Deploy | Proxmox VM, Traefik reverse proxy, open on trusted LAN |
+| Backend | FastAPI, async Python |
+| Database | SQLite via aiosqlite, WAL mode, soft deletes |
+| AI | Gemini 2.0 Flash (google-genai) |
+| Frontend | Vanilla JS with ES modules, no framework, no build step |
+| Deploy | Docker, (I use) Traefik reverse proxy, single replica |
 
-## Running
-
-```
-uvicorn backend.app:app --reload    → http://localhost:8000
-```
-
-FastAPI serves `index.html` at `/`. 
-
-## Config
-
-```
-GEMINI_API_KEY=       - required
-```
-
-## Phases
-
-1. **Garage UI** - Landing page with car cards, add-car flow, car selection routing to the dashboard
-2. **Car dashboard** - Tile grid layout, car info view, basic car record (year, make, model, trim, engine, notes)
-3. **Research tile** - Gemini streaming with `google_search` grounding, car-aware system prompt, handles both part lookups *and* general how-to questions
-4. **Structured commands** - Gemini tool definitions: `log_progress`, `search_parts`, `add_to_cart`, `log_maintenance`
-5. **Photo pins** - Upload car photos, tap to drop a pin, label + notes, trigger a Gemini part search scoped to that pin's context
-6. **Cart + parts tracker** - Parts list with supplier, price, status; cart tab on dashboard
-7. **Journal + Notes** - Browsable progress timeline, freeform notes scratchpad with AI cleanup on demand
-8. **Chat tile** - Streaming live chat with full car + journal + notes context baked into the prompt
-9. **Voice input** - faster-whisper STT + Silero VAD, iPhone audio → transcribe → chat pipeline
-10. **Voice output** - piper TTS, full hands-free loop
-11. **Enhanced intelligence** - ETK-style exploded diagrams as pinnable views, cross-session context
-12. **Deploy** - Dockerfile, Proxmox, LAN
-
-## File Structure
+## Project structure
 
 ```
 pitcrew/
-  README.md
-  Dockerfile
-  backend/
-    __init__.py         - makes backend a Python package
-    app.py              - FastAPI: REST endpoints, static file serving
-    db.py               - SQLite schema + queries
-    prompt.py           - System prompt builder (assembled dynamically from car record)
-    voice.py            - VAD + STT + TTS pipeline
-    requirements.txt
-  static/
-    index.html          - Single-file frontend (plain HTML/CSS/JS)
-    assets/
-    uploads/originals/  - Full EXIF photos (local only, never sent to Google)
+├── backend/
+│   ├── app.py              - app entry point, mounts routers, serves static files
+│   ├── db.py               - database schema, migrations, all CRUD operations
+│   ├── routes/
+│   │   ├── cars.py         - car CRUD and photo upload
+│   │   ├── journal.py      - journal entries and AI research queries
+│   │   ├── views.py        - photo views, pins, and pin-level AI research
+│   │   ├── parts.py        - parts list / cart
+│   │   └── manuals.py      - document uploads and AI document search
+│   └── services/
+│       └── gemini.py       - all Gemini API calls, prompt building, image processing
+├── static/
+│   ├── index.html          - HTML shell, no inline JavaScript
+│   ├── style.css           - all styling
+│   ├── manifest.json       - PWA manifest for home screen install
+│   ├── sw.js               - service worker for offline shell caching
+│   ├── js/
+│   │   ├── app.js          - boot sequence, shared state, API helper, utilities
+│   │   ├── garage.js       - car grid and add/remove car flow
+│   │   ├── car.js          - car view, sidebar navigation, info form, photo upload
+│   │   ├── journal.js      - research, notes, converse, and document search tabs
+│   │   ├── pins.js         - photo grid, pin overlay, AI component research
+│   │   ├── cart.js         - parts table, add/edit modals, status management
+│   │   ├── manuals.js      - document grid, file uploads, AI document Q&A
+│   │   └── dialogs.js      - custom prompt and confirm modals
+│   ├── icons/              - PWA icons
+│   └── uploads/            - car photos, view photos, uploaded documents
+├── Dockerfile
+├── docker-compose.yml
+├── PLAN.md                 - roadmap and architectural decisions
+└── .env                    - environment variables (hook ya Gemini key in here)
 ```
 
-## System Prompt
+## Data and storage
 
-The prompt is built dynamically per-car from the `cars` table - year, make, model, trim are injected at runtime. This means the assistant context stays accurate when switching between cars in garage mode without maintaining separate hardcoded prompts.
+The database is SQLite with WAL mode and foreign keys enabled. Every delete is a soft delete - nothing is permanently removed, records are filtered by `deleted_at IS NULL`. Enum fields (part status, category, journal type) are validated both in the schema and in application code.
 
-## How It Works
+Images are compressed on upload (max 2048px on the longest edge) and EXIF metadata is stripped before anything is sent to an external API.
 
-The **landing page is the Garage** - a grid of car cards. Click a car to open its manager, or tap the add card to register a new one. Everything in the app is scoped to the active car: prompts, searches, journal entries, parts, pins, notes.
+Two Docker volumes keep your data safe across rebuilds:
+- `pitcrew-data` - the SQLite database
+- `pitcrew-uploads` - photos and documents
 
-### Inside a Car
-
-A centered tile-based dashboard gives quick access to all the car's tools:
-
-| Tile | Purpose |
-|------|---------|
-| **Car Info** | Year, make, model, trim, engine, build notes |
-| **Journal** | Timeline of what's been done and what's next |
-| **Research** | AI-grounded search - ask for part numbers *or* "how do I do this?" |
-| **Photo Pins** | Upload images, drop pins on parts, trigger a part search from that pin |
-| **Cart** | Running list of things to buy |
-| **Notes** | Freeform scratchpad - AI can parse and clean it up on demand |
-| **Chat** | Streaming live chat with full car + journal + notes context |
-
-> **Research** covers both specific part ID lookups and general how-to questions - both go through Gemini with `google_search` grounding and return structured results with links.
-
-## Photo Pins
-
-Upload photos from any angle (exterior, engine bay, underside, interior). Tap the photo to drop a pin → add a label + notes → search that part. Results come back with links and prices, one tap saves to parts tracker.
-
-**Pin → Search:** backend assembles car + view + pin context into a Gemini prompt with `google_search` grounding. Every search is logged for later reference.
-
-**Photos:** originals stored locally with EXIF intact (useful for progress timeline). Before anything is sent to Google, Pillow re-renders pixel data only into a clean in-memory buffer - GPS, device info, and timestamps are never transmitted externally.
-
-## Data Model
-
-```
-cars       - id, nickname, year, make, model, trim
-messages   - id, car_id, role, content, citations, created_at
-views      - id, car_id, name, angle, file_path, type (photo | diagram)
-pins       - id, view_id, label, notes, status, x_pct, y_pct, created_at
-parts      - id, pin_id (FK), name, part_number, url, price, status
-searches   - id, pin_id, query_sent, result_summary, raw_response, created_at
-```
-
-
+> **Note:** SQLite doesn't support concurrent writes from separate processes, so this runs as a single replica only. TLDR; single node in docker, hence the constraint to a single host in the compose file.
