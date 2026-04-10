@@ -1,6 +1,6 @@
 // PitCrew — photo pins (views, pin overlay, AI research)
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown } from './app.js';
+import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewPrompt, pitcrewConfirm } from './dialogs.js';
 
 let carViews = {};      // { angle: [view, ...] }
@@ -74,7 +74,7 @@ async function renderViewTab(angle) {
                         ? `<div class="pin-research-result" id="pin-answer-${pin.id}" style="display:none"><p>${renderMarkdown(summary)}</p></div>`
                         : '';
                     const loadingDiv = isLoading
-                        ? '<div class="pin-research-result pin-research-loading">Researching...</div>'
+                        ? `<div class="pin-research-result pin-research-loading">${aiLoadingHtml('Researching')}</div>`
                         : '';
                     return `<div class="pin-list-item">
                         <div class="pin-list-top">
@@ -240,7 +240,7 @@ async function researchPin(pinId, viewId, angle) {
         pinResearch[pinId] = { loading: false, summary: data.summary };
     } catch (e) {
         pinResearch[pinId] = { loading: false, summary: null };
-        toast('AI research failed');
+        toast(isAiBusy(e) ? AI_BUSY_MSG : 'AI research failed');
     }
     await renderViewTab(angle);
 }

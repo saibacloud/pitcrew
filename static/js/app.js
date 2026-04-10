@@ -54,6 +54,16 @@ export function escapeHtml(str) {
         .replace(/>/g, '&gt;');
 }
 
+export function aiLoadingHtml(text = 'Thinking') {
+    return `<div class="ai-loading">${text}<div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
+}
+
+export function isAiBusy(error) {
+    return error && error.message && error.message.includes('502');
+}
+
+export const AI_BUSY_MSG = 'Google AI is busy right now, give it a moment and try again';
+
 export function renderMarkdown(str) {
     return escapeHtml(str)
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')

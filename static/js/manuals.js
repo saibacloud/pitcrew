@@ -1,6 +1,6 @@
 // PitCrew — manuals / documents
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown } from './app.js';
+import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewConfirm, closePdfViewer } from './dialogs.js';
 import { lastDocAnswer, setLastDocAnswer } from './journal.js';
 
@@ -116,7 +116,7 @@ async function askDocuments() {
     if (selectedManualIds.size === 0) { toast('Check at least one document first'); return; }
     const btn = document.getElementById('doc-ask-btn');
     btn.disabled = true;
-    btn.textContent = 'Asking...';
+    btn.innerHTML = aiLoadingHtml('Searching docs');
     const resultEl = document.getElementById('doc-ask-result');
     const answerEl = document.getElementById('doc-ask-answer');
     resultEl.style.display = 'none';
@@ -136,7 +136,7 @@ async function askDocuments() {
         document.getElementById('doc-ask-save-btn').textContent = 'Save to Journal';
         input.value = '';
     } catch (e) {
-        toast('AI search failed');
+        toast(isAiBusy(e) ? AI_BUSY_MSG : 'AI search failed');
     } finally {
         btn.disabled = selectedManualIds.size === 0;
         updateDocAskBtn();

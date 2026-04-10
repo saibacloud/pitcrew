@@ -1,6 +1,6 @@
 // PitCrew — journal (research, notes, converse, doc search)
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown } from './app.js';
+import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let journalEntries = [];
@@ -101,7 +101,7 @@ async function runResearch() {
     if (!query) { toast('Enter a question first'); return; }
     const btn = document.getElementById('research-btn');
     btn.disabled = true;
-    btn.textContent = 'Searching...';
+    btn.innerHTML = aiLoadingHtml('Searching');
     try {
         const entry = await api('POST', `/api/cars/${activeCar.id}/research`, { query });
         journalEntries.unshift(entry);
@@ -109,7 +109,7 @@ async function runResearch() {
         renderJournalTab('research');
         toast('Done');
     } catch (e) {
-        toast('Search failed - check console');
+        toast(isAiBusy(e) ? AI_BUSY_MSG : 'Search failed');
         console.error(e);
     } finally {
         btn.disabled = false;
