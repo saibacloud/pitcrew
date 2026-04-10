@@ -17,9 +17,7 @@
         </header>
         <main>
             <div class="section-heading">Your Garage <span id="car-count"></span></div>
-            <div class="car-grid" id="car-grid">
-                <!-- Car cards injected here -->
-            </div>
+            <div class="car-grid" id="car-grid"></div>
         </main>
     </div>
 
@@ -29,7 +27,7 @@
             <span class="logo">Pit<em>Crew</em></span>
         </header>
         <div class="car-subheader">
-            <button class="back-btn" onclick="showGarage()">Garage</button>
+            <button class="back-btn">Garage</button>
             <div class="header-right">
                 <strong id="header-car-name"></strong>
                 <span id="header-car-spec"></span>
@@ -44,22 +42,19 @@
                     <h2 id="sidebar-car-name"></h2>
                     <p id="sidebar-car-spec"></p>
                 </div>
-                <div class="car-nav-item active" onclick="showSection('section-info', this)">
+                <div class="car-nav-item active" data-section="section-info">
                     <span class="nav-label">Car Info</span>
-                    <!-- add a badge <span class="nav-badge">Hot shit</span> -->
-
-
                 </div>
-                <div class="car-nav-item" onclick="showSection('section-journal', this); loadJournal()">
+                <div class="car-nav-item" data-section="section-journal" data-load="journal">
                     <span class="nav-label">Journal</span>
                 </div>
-                <div class="car-nav-item" onclick="showSection('section-pins', this); loadViews()">
+                <div class="car-nav-item" data-section="section-pins" data-load="views">
                     <span class="nav-label">Photo Pins</span>
                 </div>
-                <div class="car-nav-item" onclick="showSection('section-cart', this); loadCartParts()">
+                <div class="car-nav-item" data-section="section-cart" data-load="cart">
                     <span class="nav-label">Cart</span>
                 </div>
-                <div class="car-nav-item" onclick="showSection('section-manual', this); loadManuals()">
+                <div class="car-nav-item" data-section="section-manual" data-load="manuals">
                     <span class="nav-label">Manual</span>
                 </div>
             </nav>
@@ -67,21 +62,15 @@
             <!-- MAIN CONTENT AREA -->
             <div class="car-content">
 
-                <!-- CAR INFO - default active section -->
+                <!-- CAR INFO -->
                 <div class="car-section active" id="section-info">
                     <div class="car-section-heading">Car Info</div>
 
-                    <!-- Photo upload -->
                     <div class="car-photo-wrap">
-                        <div class="car-photo-frame" onclick="document.getElementById('photo-input').click()"
-                            id="photo-frame">
-                            <div class="car-photo-placeholder" id="photo-placeholder">
-                                No photo
-                            </div>
+                        <div class="car-photo-frame" id="photo-frame">
+                            <div class="car-photo-placeholder" id="photo-placeholder">No photo</div>
                             <img id="car-photo-img" src="" alt="" style="display:none" />
-                            <button class="car-photo-delete" id="photo-delete-btn"
-                                onclick="event.stopPropagation(); deleteCarPhoto()" style="display:none"
-                                title="Delete photo">
+                            <button class="car-photo-delete" id="photo-delete-btn" style="display:none" title="Delete photo">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                                     <line x1="4" y1="4" x2="20" y2="20" />
@@ -89,15 +78,10 @@
                                 </svg>
                             </button>
                         </div>
-                        <input type="file" id="photo-input" class="car-photo-input" accept="image/*"
-                            onchange="handlePhotoUpload(event)" />
+                        <input type="file" id="photo-input" class="car-photo-input" accept="image/*" />
                     </div>
 
-
-
-                    <!-- Menu Items -->
-
-                    <form id="form-car-info" onsubmit="saveCarInfo(event)">
+                    <form id="form-car-info">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Year</label>
@@ -142,24 +126,21 @@
                     </form>
                 </div>
 
-                <!-- STUB SECTIONS -->
+                <!-- JOURNAL -->
                 <div class="car-section" id="section-journal">
                     <div class="car-section-heading">Journal</div>
 
-                    <!-- Journal Tabs -->
                     <div class="section-tabs">
-                        <button class="section-tab active" onclick="showJournalTab('research', this)">Research</button>
-                        <button class="section-tab" onclick="showJournalTab('converse', this)">Converse</button>
-                        <button class="section-tab" onclick="showJournalTab('note', this)">Note</button>
-                        <button class="section-tab" onclick="showJournalTab('docsearch', this)">Manual Searches</button>
+                        <button class="section-tab active" data-tab="research">Research</button>
+                        <button class="section-tab" data-tab="converse">Converse</button>
+                        <button class="section-tab" data-tab="note">Note</button>
+                        <button class="section-tab" data-tab="docsearch">Manual Searches</button>
                     </div>
 
-                    <!-- Research Tab -->
                     <div class="section-tab-content active" id="journal-research">
                         <div class="journal-add-form">
-                            <input type="text" id="research-input" placeholder="Search for..."
-                                onkeydown="if(event.key==='Enter') runResearch()" />
-                            <button class="btn btn-primary" id="research-btn" onclick="runResearch()">Search</button>
+                            <input type="text" id="research-input" placeholder="Search for..." />
+                            <button class="btn btn-primary" id="research-btn">Search</button>
                         </div>
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Query</th><th></th></tr></thead>
@@ -167,12 +148,10 @@
                         </table>
                     </div>
 
-                    <!-- Converse Tab -->
                     <div class="section-tab-content" id="journal-converse">
                         <div class="journal-add-form">
-                            <input type="text" id="converse-input" placeholder="Search for..."
-                                onkeydown="if(event.key==='Enter') addJournalEntry('converse')" />
-                            <button class="btn btn-primary" onclick="addJournalEntry('converse')">Converse</button>
+                            <input type="text" id="converse-input" placeholder="Search for..." />
+                            <button class="btn btn-primary">Converse</button>
                         </div>
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Topic</th><th></th></tr></thead>
@@ -180,12 +159,10 @@
                         </table>
                     </div>
 
-                    <!-- Note Tab -->
                     <div class="section-tab-content" id="journal-note">
                         <div class="journal-add-form journal-add-form--col">
-                            <textarea id="note-input" rows="3"
-                                placeholder="Write a note"></textarea>
-                            <button class="btn btn-primary" onclick="addJournalEntry('note')">Save Note</button>
+                            <textarea id="note-input" rows="3" placeholder="Write a note"></textarea>
+                            <button class="btn btn-primary">Save Note</button>
                         </div>
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Note</th><th></th></tr></thead>
@@ -193,7 +170,6 @@
                         </table>
                     </div>
 
-                    <!-- Manual Searches Tab -->
                     <div class="section-tab-content" id="journal-docsearch">
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Question</th><th></th></tr></thead>
@@ -202,128 +178,92 @@
                     </div>
                 </div>
 
-
-                <!-- Photo Tabs -->
+                <!-- PHOTO PINS -->
                 <div class="car-section" id="section-pins">
                     <div class="car-section-heading">Photo Pins</div>
                     <div class="section-tabs">
-                        <button class="section-tab active" onclick="showPhotoTab('front', this)">Front</button>
-                        <button class="section-tab" onclick="showPhotoTab('sideD', this)">Driver Side</button>
-                        <button class="section-tab" onclick="showPhotoTab('sideP', this)">Passenger Side</button>
-                        <button class="section-tab" onclick="showPhotoTab('rear', this)">Rear</button>
-                        <button class="section-tab" onclick="showPhotoTab('engine', this)">Engine Bay</button>
-                        <button class="section-tab" onclick="showPhotoTab('underside', this)">Underside</button>
-                        <button class="section-tab" onclick="showPhotoTab('interior', this)">Interior</button>
+                        <button class="section-tab active" data-tab="front">Front</button>
+                        <button class="section-tab" data-tab="sideD">Driver Side</button>
+                        <button class="section-tab" data-tab="sideP">Passenger Side</button>
+                        <button class="section-tab" data-tab="rear">Rear</button>
+                        <button class="section-tab" data-tab="engine">Engine Bay</button>
+                        <button class="section-tab" data-tab="underside">Underside</button>
+                        <button class="section-tab" data-tab="interior">Interior</button>
                     </div>
 
-                    <!-- Front Tab -->
                     <div class="section-tab-content active" id="photo-front">
                         <div class="view-grid" id="view-grid-front"></div>
-                        <input type="file" id="view-input-front" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('front', event)" />
+                        <input type="file" id="view-input-front" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Driver Side Tab -->
                     <div class="section-tab-content" id="photo-sideD">
                         <div class="view-grid" id="view-grid-sideD"></div>
-                        <input type="file" id="view-input-sideD" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('sideD', event)" />
+                        <input type="file" id="view-input-sideD" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Passenger Side Tab -->
                     <div class="section-tab-content" id="photo-sideP">
                         <div class="view-grid" id="view-grid-sideP"></div>
-                        <input type="file" id="view-input-sideP" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('sideP', event)" />
+                        <input type="file" id="view-input-sideP" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Rear Tab -->
                     <div class="section-tab-content" id="photo-rear">
                         <div class="view-grid" id="view-grid-rear"></div>
-                        <input type="file" id="view-input-rear" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('rear', event)" />
+                        <input type="file" id="view-input-rear" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Engine Bay Tab -->
                     <div class="section-tab-content" id="photo-engine">
                         <div class="view-grid" id="view-grid-engine"></div>
-                        <input type="file" id="view-input-engine" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('engine', event)" />
+                        <input type="file" id="view-input-engine" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Underside Tab -->
                     <div class="section-tab-content" id="photo-underside">
                         <div class="view-grid" id="view-grid-underside"></div>
-                        <input type="file" id="view-input-underside" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('underside', event)" />
+                        <input type="file" id="view-input-underside" accept="image/*" multiple style="display:none" />
                     </div>
-
-                    <!-- Interior Tab -->
                     <div class="section-tab-content" id="photo-interior">
                         <div class="view-grid" id="view-grid-interior"></div>
-                        <input type="file" id="view-input-interior" accept="image/*" multiple style="display:none"
-                            onchange="handleViewUpload('interior', event)" />
+                        <input type="file" id="view-input-interior" accept="image/*" multiple style="display:none" />
                     </div>
                 </div>
 
-
-                <!-- Cart -->
+                <!-- CART -->
                 <div class="car-section" id="section-cart">
-                    <div class="car-section-heading">
-                        Cart
-                    </div>
-                    <!-- Category tabs -->
+                    <div class="car-section-heading">Cart</div>
                     <div class="section-tabs">
-                        <button class="section-tab active" onclick="filterCartCategory('all', this)">All</button>
-                        <button class="section-tab" onclick="filterCartCategory('Mechanical', this)">Mechanical</button>
-                        <button class="section-tab" onclick="filterCartCategory('Electrical', this)">Electrical</button>
-                        <button class="section-tab" onclick="filterCartCategory('Body', this)">Body</button>
-                        <button class="section-tab" onclick="filterCartCategory('Interior', this)">Interior</button>
-                        <button class="section-tab" onclick="filterCartCategory('Consumables', this)">Consumables</button>
+                        <button class="section-tab active" data-tab="all">All</button>
+                        <button class="section-tab" data-tab="Mechanical">Mechanical</button>
+                        <button class="section-tab" data-tab="Electrical">Electrical</button>
+                        <button class="section-tab" data-tab="Body">Body</button>
+                        <button class="section-tab" data-tab="Interior">Interior</button>
+                        <button class="section-tab" data-tab="Consumables">Consumables</button>
                     </div>
-                    <!-- Parts list -->
                     <div id="cart-parts-list"></div>
                 </div>
 
-
-                <!-- Manual -->
+                <!-- DOCUMENTS -->
                 <div class="car-section" id="section-manual">
                     <div class="car-section-heading">Documents</div>
-                    <!-- AI Ask bar -->
                     <div class="journal-add-form" style="margin-bottom:16px">
-                        <input type="text" id="doc-ask-input" placeholder="Search for..."
-                            onkeydown="if(event.key==='Enter') askDocuments()" />
-                        <button class="btn btn-primary" id="doc-ask-btn" onclick="askDocuments()" disabled>Ask AI</button>
+                        <input type="text" id="doc-ask-input" placeholder="Search for..." />
+                        <button class="btn btn-primary" id="doc-ask-btn" disabled>Ask AI</button>
                     </div>
                     <div id="doc-ask-result" style="display:none;margin-bottom:20px">
                         <div class="research-answer" id="doc-ask-answer"></div>
                         <div style="margin-top:10px">
-                            <button class="btn btn-ghost" id="doc-ask-save-btn" onclick="saveDocSearch()">Save to Journal</button>
+                            <button class="btn btn-ghost" id="doc-ask-save-btn">Save to Journal</button>
                         </div>
                     </div>
                     <div class="section-tabs">
-                        <button class="section-tab active" onclick="showManualTab('manual', this)">Manuals</button>
-                        <button class="section-tab" onclick="showManualTab('reference', this)">Reference</button>
-                        <button class="section-tab" onclick="showManualTab('other', this)">Other</button>
+                        <button class="section-tab active" data-tab="manual">Manuals</button>
+                        <button class="section-tab" data-tab="reference">Reference</button>
+                        <button class="section-tab" data-tab="other">Other</button>
                     </div>
-                    <!-- Manuals tab -->
                     <div class="section-tab-content active" id="manual-tab-manual">
                         <div class="manual-grid" id="manual-grid-manual"></div>
-                        <input type="file" id="manual-file-input-manual" accept=".pdf,.docx,.doc" style="display:none"
-                            onchange="handleManualUpload(event, 'manual')" multiple />
+                        <input type="file" id="manual-file-input-manual" accept=".pdf,.docx,.doc" style="display:none" multiple />
                     </div>
-                    <!-- Reference tab -->
                     <div class="section-tab-content" id="manual-tab-reference">
                         <div class="manual-grid" id="manual-grid-reference"></div>
-                        <input type="file" id="manual-file-input-reference"
-                            accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.bmp" style="display:none"
-                            onchange="handleManualUpload(event, 'reference')" multiple />
+                        <input type="file" id="manual-file-input-reference" accept=".jpg,.jpeg,.png,.webp,.gif,.svg,.bmp" style="display:none" multiple />
                     </div>
-                    <!-- Other tab -->
                     <div class="section-tab-content" id="manual-tab-other">
                         <div class="manual-grid" id="manual-grid-other"></div>
-                        <input type="file" id="manual-file-input-other" style="display:none"
-                            onchange="handleManualUpload(event, 'other')" multiple />
+                        <input type="file" id="manual-file-input-other" style="display:none" multiple />
                     </div>
                 </div>
 
@@ -335,7 +275,7 @@
     <div class="modal-overlay" id="modal-add-part">
         <div class="modal">
             <h3>Add Part</h3>
-            <form id="form-add-part" onsubmit="submitAddPart(event)">
+            <form id="form-add-part">
                 <div class="form-grid">
                     <div class="form-group full">
                         <label>Name <span style="color:var(--muted)">*</span></label>
@@ -373,7 +313,7 @@
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-ghost" onclick="closeAddPartModal()">Cancel</button>
+                    <button type="button" class="btn btn-ghost">Cancel</button>
                     <button type="submit" class="btn btn-primary">Add Part</button>
                 </div>
             </form>
@@ -384,7 +324,7 @@
     <div class="modal-overlay" id="modal-add-car">
         <div class="modal">
             <h3>Add a Car</h3>
-            <form id="form-add-car" onsubmit="submitAddCar(event)">
+            <form id="form-add-car">
                 <div class="form-grid">
                     <div class="form-group full">
                         <label>Options</label>
@@ -408,1121 +348,58 @@
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button type="button" class="btn btn-ghost">Cancel</button>
                     <button type="submit" class="btn btn-primary">Add Car</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Toast notification -->
+    <!-- Toast -->
     <div id="toast"></div>
 
     <!-- PDF Viewer -->
     <div class="pdf-viewer-overlay" id="pdf-viewer-overlay" style="display:none">
         <div class="pdf-toolbar">
             <span class="pdf-title" id="pdf-title"></span>
-            <button class="pdf-close-btn" onclick="closePdfViewer()">Close</button>
+            <button class="pdf-close-btn">Close</button>
         </div>
         <iframe id="pdf-frame" class="pdf-frame" src=""></iframe>
     </div>
 
-    <script>
-
-        let activeCar = null;
-        let selectedManualIds = new Set();
-        async function api(method, path, body) {
-            const opts = {
-                method,
-                headers: body ? { 'Content-Type': 'application/json' } : {},
-                body: body ? JSON.stringify(body) : undefined,
-            };
-            const res = await fetch(path, opts);
-            if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-            if (res.status === 204) return null;
-            return res.json();
-        }
-
-        function toast(msg) {
-            const el = document.getElementById('toast');
-            el.textContent = msg;
-            el.classList.add('show');
-            clearTimeout(el._t);
-            el._t = setTimeout(() => el.classList.remove('show'), 2800);
-        }
-
-        function carSpec(car) {
-            return [car.year, car.make, car.model, car.trim].filter(Boolean).join(' ');
-        }
-
-        function showGarage() {
-            document.getElementById('view-garage').classList.add('active');
-            document.getElementById('view-car').classList.remove('active');
-            activeCar = null;
-            loadGarage();
-        }
-
-        function showCar(car) {
-            activeCar = car;
-            document.getElementById('view-garage').classList.remove('active');
-            document.getElementById('view-car').classList.add('active');
-            const spec = carSpec(car);
-            document.getElementById('header-car-name').textContent = spec || 'Unknown Car';
-            document.getElementById('header-car-spec').textContent = '';
-            document.getElementById('sidebar-car-name').textContent = spec || 'Unknown Car';
-            document.getElementById('sidebar-car-spec').textContent = car.options || '';
-            // Always land on Car Info
-            showSection('section-info');
-            populateCarInfoForm();
-            loadCarPhoto();
-        }
-
-        // ── Sidebar Nav ──────────────────────────────────────────────────────────
-        function showSection(sectionId, navEl) {
-            document.querySelectorAll('.car-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.car-nav-item').forEach(n => n.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            if (navEl) {
-                navEl.classList.add('active');
-            } else {
-                // activate the nav item that maps to this section
-                document.querySelectorAll('.car-nav-item').forEach(n => {
-                    if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(sectionId)) {
-                        n.classList.add('active');
-                    }
-                });
-            }
-        }
-
-        // ── Journal Tabs ──────────────────────────────────────────────────────────
-        function showJournalTab(tabId, btnEl) {
-            document.querySelectorAll('#section-journal .section-tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('#section-journal .section-tab').forEach(b => b.classList.remove('active'));
-            document.getElementById(`journal-${tabId}`).classList.add('active');
-            btnEl.classList.add('active');
-        }
-        // ── Journal Data ────────────────────────────────────────────────────────────
-        let journalEntries = [];
-        let lastDocAnswer = null; // { question, answer, sources }
-
-        async function loadJournal() {
-            if (!activeCar) return;
-            try {
-                journalEntries = await api('GET', `/api/cars/${activeCar.id}/journal`);
-            } catch (e) {
-                journalEntries = [];
-            }
-            renderJournalTab('research');
-            renderJournalTab('converse');
-            renderJournalTab('note');
-            renderJournalTab('docsearch');
-        }
-
-        function renderJournalTab(type) {
-            const tbody = document.getElementById(`${type}-tbody`);
-            if (!tbody) return;
-            const entries = journalEntries.filter(e => e.type === type);
-            if (!entries.length) {
-                tbody.innerHTML = `<tr><td colspan="3" class="parts-table-empty">No entries yet</td></tr>`;
-                return;
-            }
-            tbody.innerHTML = entries.map(e => {
-                const date = new Date(e.created_at + 'Z').toLocaleDateString();
-
-                if (type === 'research') {
-                    const hasAnswer = !!e.body;
-                    const answerBtn = hasAnswer
-                        ? `<button class="btn btn-ghost" onclick="toggleResearchAnswer(${e.id})">View Answer</button>`
-                        : `<button class="btn btn-ghost" disabled title="No answer stored">No Answer</button>`;
-                    const answerRow = hasAnswer
-                        ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                            <td colspan="3"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
-                           </tr>`
-                        : '';
-                    return `<tr>
-                        <td class="journal-date">${date}</td>
-                        <td class="journal-text">${escapeHtml(e.title || '')}</td>
-                        <td class="parts-table-actions">
-                            ${answerBtn}
-                            <button class="btn btn-ghost" onclick="deleteJournalEntry(${e.id})">Delete</button>
-                        </td>
-                    </tr>${answerRow}`;
-                }
-
-                if (type === 'docsearch') {
-                    const hasAnswer = !!e.body;
-                    const answerBtn = hasAnswer
-                        ? `<button class="btn btn-ghost" onclick="toggleResearchAnswer(${e.id})">View Answer</button>`
-                        : `<button class="btn btn-ghost" disabled>No Answer</button>`;
-                    const answerRow = hasAnswer
-                        ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                            <td colspan="3"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
-                           </tr>`
-                        : '';
-                    return `<tr>
-                        <td class="journal-date">${date}</td>
-                        <td class="journal-text">${escapeHtml(e.title || '')}</td>
-                        <td class="parts-table-actions">
-                            ${answerBtn}
-                            <button class="btn btn-ghost" onclick="deleteJournalEntry(${e.id})">Delete</button>
-                        </td>
-                    </tr>${answerRow}`;
-                }
-
-                const aiBtn = type === 'converse'
-                    ? `<button class="btn btn-ghost" disabled title="Coming soon">Start</button>`
-                    : '';
-                return `<tr>
-                    <td class="journal-date">${date}</td>
-                    <td class="journal-text">${escapeHtml(e.title || '')}</td>
-                    <td class="parts-table-actions">
-                        ${aiBtn}
-                        <button class="btn btn-ghost" onclick="deleteJournalEntry(${e.id})">Delete</button>
-                    </td>
-                </tr>`;
-            }).join('');
-        }
-
-        function escapeHtml(str) {
-            return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-        }
-
-        function renderMarkdown(str) {
-            return escapeHtml(str)
-                // **bold**
-                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                // *italic*
-                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                // bullet lines starting with - or *
-                .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')
-                // double newline → paragraph break
-                .replace(/\n{2,}/g, '</p><p>')
-                // single newline → line break
-                .replace(/\n/g, '<br>')
-                // wrap li runs in a ul
-                .replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
-        }
-
-        function toggleResearchAnswer(id) {
-            const row = document.getElementById(`answer-${id}`);
-            if (!row) return;
-            const shown = row.style.display !== 'none';
-            row.style.display = shown ? 'none' : 'table-row';
-            const btn = row.previousElementSibling.querySelector('.btn-ghost');
-            if (btn) btn.textContent = shown ? 'View Answer' : 'Hide Answer';
-        }
-
-        async function runResearch() {
-            const inputEl = document.getElementById('research-input');
-            const query = inputEl?.value?.trim();
-            if (!query) { toast('Enter a question first'); return; }
-            const btn = document.getElementById('research-btn');
-            btn.disabled = true;
-            btn.textContent = 'Searching...';
-            try {
-                const entry = await api('POST', `/api/cars/${activeCar.id}/research`, { query });
-                journalEntries.unshift(entry);
-                inputEl.value = '';
-                renderJournalTab('research');
-                toast('Done ✓');
-            } catch (e) {
-                toast('Search failed - check console');
-                console.error(e);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Search';
-            }
-        }
-
-        async function addJournalEntry(type) {
-            const inputEl = document.getElementById(`${type}-input`);
-            const title = inputEl?.value?.trim();
-            if (!title) { toast('Enter something first'); return; }
-            try {
-                const entry = await api('POST', `/api/cars/${activeCar.id}/journal`, { type, title });
-                journalEntries.unshift(entry);
-                inputEl.value = '';
-                renderJournalTab(type);
-                toast('Saved ✓');
-            } catch (e) { toast('Failed to save'); }
-        }
-
-        async function deleteJournalEntry(id) {
-            if (!await pitcrewConfirm('Delete this journal entry?')) return;
-            try {
-                await api('DELETE', `/api/journal/${id}`);
-                journalEntries = journalEntries.filter(e => e.id !== id);
-                ['research', 'converse', 'note', 'docsearch'].forEach(renderJournalTab);
-                toast('Entry deleted ✓');
-            } catch (e) { toast('Error deleting entry'); }
-        }
-        // ── Photo Tabs ──────────────────────────────────────────────────────────
-        function showPhotoTab(tabId, btnEl) {
-            document.querySelectorAll('#section-pins .section-tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('#section-pins .section-tab').forEach(b => b.classList.remove('active'));
-            document.getElementById(`photo-${tabId}`).classList.add('active');
-            btnEl.classList.add('active');
-        }
-        // ── Photo Pins (Views) ───────────────────────────────────────────────────────
-        let carViews = {};      // { angle: [view, ...] }
-        let carPins = {};       // { viewId: [pin, ...] }
-        let activeViews = {};   // { angle: viewId | null }
-        let pinResearch = {};   // { pinId: { loading: bool, summary: string|null } }
-
-        async function loadViews() {
-            if (!activeCar) return;
-            try {
-                const views = await api('GET', `/api/cars/${activeCar.id}/views`);
-                carViews = {};
-                carPins = {};
-                activeViews = {};
-                pinResearch = {};
-                for (const v of views) {
-                    if (!carViews[v.angle]) carViews[v.angle] = [];
-                    carViews[v.angle].push(v);
-                }
-            } catch (e) {
-                carViews = {};
-                carPins = {};
-                activeViews = {};
-            }
-            await Promise.all(['front', 'sideD', 'sideP', 'rear', 'engine', 'underside', 'interior'].map(a => renderViewTab(a)));
-        }
-
-        async function renderViewTab(angle) {
-            const grid = document.getElementById(`view-grid-${angle}`);
-            if (!grid) return;
-            grid.innerHTML = '';
-
-            const views = carViews[angle] || [];
-            const activeViewId = activeViews[angle] || null;
-
-            // ── EXPANDED: single photo with pin overlay ──────────────────────────
-            if (activeViewId) {
-                const view = views.find(v => v.id === activeViewId);
-                if (view) {
-                    if (!carPins[view.id]) {
-                        try {
-                            carPins[view.id] = await api('GET', `/api/views/${view.id}/pins`);
-                        } catch (e) {
-                            carPins[view.id] = [];
-                        }
-                    }
-                    const pins = carPins[view.id];
-
-                    const pinsHtml = pins.map((pin, i) =>
-                        '<div class="pin-marker" style="left:' + pin.x_pct + '%;top:' + pin.y_pct + '%;" '
-                        + 'title="' + escapeHtml(pin.label) + '" '
-                        + 'onclick="event.stopPropagation(); deletePin(' + pin.id + ', ' + view.id + ', \'' + angle + '\')">'
-                        + '<span class="pin-num">' + (i + 1) + '</span></div>'
-                    ).join('');
-
-                    const pinListHtml = pins.length
-                        ? pins.map((pin, i) => {
-                            const notesSpan = pin.notes
-                                ? '<span class="pin-notes">' + escapeHtml(pin.notes) + '</span>'
-                                : '';
-                            const research = pinResearch[pin.id];
-                            const isLoading = !!(research && research.loading);
-                            const summary = isLoading ? null : ((research && research.summary) || pin.ai_summary || null);
-                            const aiLabel = isLoading ? 'Researching...' : 'Ask AI';
-                            const viewAnswerBtn = summary
-                                ? '<button class="btn btn-ghost" id="pin-view-btn-' + pin.id + '" onclick="togglePinAnswer(' + pin.id + ')">View Answer</button>'
-                                : '';
-                            const answerDiv = summary
-                                ? '<div class="pin-research-result" id="pin-answer-' + pin.id + '" style="display:none"><p>' + renderMarkdown(summary) + '</p></div>'
-                                : '';
-                            const loadingDiv = isLoading
-                                ? '<div class="pin-research-result pin-research-loading">Researching...</div>'
-                                : '';
-                            return '<div class="pin-list-item">'
-                                + '<div class="pin-list-top">'
-                                + '<span class="pin-num">' + (i + 1) + '</span>'
-                                + '<span class="pin-label">' + escapeHtml(pin.label) + '</span>'
-                                + '</div>'
-                                + '<div class="pin-list-bottom">'
-                                + notesSpan
-                                + '<div class="pin-list-actions">'
-                                + '<button class="btn btn-ghost" '
-                                + (isLoading ? 'disabled ' : '')
-                                + 'onclick="researchPin(' + pin.id + ', ' + view.id + ', \'' + angle + '\')">' + aiLabel + '</button>'
-                                + viewAnswerBtn
-                                + '<button class="btn btn-ghost" onclick="deletePin(' + pin.id + ', ' + view.id + ', \'' + angle + '\')">' + 'Remove</button>'
-                                + '</div>'
-                                + '</div>'
-                                + '</div>'
-                                + loadingDiv
-                                + answerDiv;
-                        }).join('')
-                        : '<span class="parts-table-empty" style="padding:8px 0;font-size:12px;display:block;">No pins - click the photo to drop one</span>';
-
-                    const wrap = document.createElement('div');
-                    wrap.className = 'view-card-wrap';
-                    wrap.innerHTML = `
-                        <button class="btn btn-ghost view-back-btn" onclick="collapseView('${angle}')">Back to photos</button>
-                        <div class="view-img-container">
-                            <img src="${view.file_path}" alt="${angle}" />
-                            <div class="pin-overlay" onclick="handlePinDrop(event, ${view.id}, '${angle}')">
-                                ${pinsHtml}
-                            </div>
-                            <button class="car-photo-delete" style="z-index:20"
-                                    onclick="event.stopPropagation(); deleteView('${angle}', ${view.id})"
-                                    title="Remove photo">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="4" y1="4" x2="20" y2="20" />
-                                    <line x1="20" y1="4" x2="4" y2="20" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div class="pin-list" id="pin-list-${view.id}">${pinListHtml}</div>
-                    `;
-                    grid.appendChild(wrap);
-                    return;
-                }
-                // View was deleted - fall through to grid
-                activeViews[angle] = null;
-            }
-
-            // ── GRID: one card per photo ─────────────────────────────────────────
-            views.forEach(view => {
-                const pinCount = (carPins[view.id] || []).length;
-                const date = new Date(view.created_at + 'Z').toLocaleDateString();
-                const card = document.createElement('div');
-                card.className = 'view-thumb-card';
-                card.innerHTML = `
-                    <div class="manual-card-actions">
-                        <button onclick="event.stopPropagation(); deleteView('${angle}', ${view.id})">Remove</button>
-                    </div>
-                    <img class="view-thumb-img" src="${view.file_path}" alt="${angle}" />
-                    <div class="view-thumb-meta">
-                        <span>${date}</span>
-                        ${pinCount > 0 ? `<span class="view-pin-badge">${pinCount} pin${pinCount !== 1 ? 's' : ''}</span>` : ''}
-                    </div>
-                `;
-                card.addEventListener('click', () => expandView(angle, view.id));
-                grid.appendChild(card);
-            });
-
-            // Always show Add Photo card at end
-            const addCard = document.createElement('div');
-            addCard.className = 'add-car-card';
-            addCard.innerHTML = `<div class="plus">+</div><div class="add-label">Add Photo</div>`;
-            addCard.addEventListener('click', () => document.getElementById(`view-input-${angle}`).click());
-            grid.appendChild(addCard);
-        }
-
-        async function expandView(angle, viewId) {
-            if (!carPins[viewId]) {
-                try {
-                    carPins[viewId] = await api('GET', `/api/views/${viewId}/pins`);
-                } catch (e) {
-                    carPins[viewId] = [];
-                }
-            }
-            activeViews[angle] = viewId;
-            await renderViewTab(angle);
-        }
-
-        function collapseView(angle) {
-            activeViews[angle] = null;
-            renderViewTab(angle);
-        }
-
-        async function handleViewUpload(angle, event) {
-            const files = Array.from(event.target.files);
-            if (!files.length) return;
-            for (const file of files) {
-                const formData = new FormData();
-                formData.append('file', file);
-                try {
-                    const res = await fetch(`/api/cars/${activeCar.id}/views/${angle}`, { method: 'POST', body: formData });
-                    if (!res.ok) throw new Error(await res.text());
-                    const newView = await res.json();
-                    if (!carViews[angle]) carViews[angle] = [];
-                    carViews[angle].push(newView);
-                    toast('Photo saved ✓');
-                } catch (e) { toast('Photo upload failed'); }
-            }
-            event.target.value = '';
-            await renderViewTab(angle);
-        }
-
-        async function deleteView(angle, id) {
-            if (!await pitcrewConfirm('Remove this photo?')) return;
-            try {
-                await api('DELETE', `/api/views/${id}`);
-                carViews[angle] = (carViews[angle] || []).filter(v => v.id !== id);
-                delete carPins[id];
-                if (activeViews[angle] === id) activeViews[angle] = null;
-                await renderViewTab(angle);
-                toast('Photo removed ✓');
-            } catch (e) { toast('Error removing photo'); }
-        }
-
-        // ── Photo Pin interactions ────────────────────────────────────────────────
-
-        async function handlePinDrop(event, viewId, angle) {
-            const overlay = event.currentTarget;
-            const rect = overlay.getBoundingClientRect();
-            const x_pct = Math.round(((event.clientX - rect.left) / rect.width) * 1000) / 10;
-            const y_pct = Math.round(((event.clientY - rect.top) / rect.height) * 1000) / 10;
-            const result = await pitcrewPrompt({
-                title: 'Add Pin',
-                labelText: 'Component label',
-                labelPlaceholder: 'e.g. Oil Filter, Coolant Reservoir',
-                okLabel: 'Add Pin',
-                showNotes: true,
-            });
-            if (!result) return;
-            const { label, notes } = result;
-            try {
-                await api('POST', `/api/views/${viewId}/pins`, { label: label.trim(), notes, x_pct, y_pct });
-                delete carPins[viewId]; // invalidate cache so render fetches fresh order
-                await renderViewTab(angle);
-                toast('Pin added ✓');
-            } catch (e) { toast('Error adding pin'); }
-        }
-
-        async function deletePin(pinId, viewId, angle) {
-            if (!await pitcrewConfirm('Remove this pin?')) return;
-            try {
-                await api('DELETE', `/api/pins/${pinId}`);
-                delete carPins[viewId]; // invalidate cache
-                await renderViewTab(angle);
-                toast('Pin removed ✓');
-            } catch (e) { toast('Error removing pin'); }
-        }
-
-        async function researchPin(pinId, viewId, angle) {
-            pinResearch[pinId] = { loading: true, summary: null };
-            await renderViewTab(angle);
-            try {
-                const data = await api('POST', `/api/pins/${pinId}/research`);
-                pinResearch[pinId] = { loading: false, summary: data.summary };
-            } catch (e) {
-                pinResearch[pinId] = { loading: false, summary: null };
-                toast('AI research failed');
-            }
-            await renderViewTab(angle);
-        }
-
-        function togglePinAnswer(pinId) {
-            const el = document.getElementById('pin-answer-' + pinId);
-            const btn = document.getElementById('pin-view-btn-' + pinId);
-            if (!el) return;
-            const shown = el.style.display !== 'none';
-            el.style.display = shown ? 'none' : 'block';
-            if (btn) btn.textContent = shown ? 'View Answer' : 'Hide Answer';
-        }
-        function loadCarPhoto() {
-            if (!activeCar || !activeCar.photo_url) {
-                document.getElementById('car-photo-img').style.display = 'none';
-                document.getElementById('photo-placeholder').style.display = 'block';
-                document.getElementById('photo-delete-btn').style.display = 'none';
-                return;
-            }
-            const img = document.getElementById('car-photo-img');
-            const placeholder = document.getElementById('photo-placeholder');
-            img.src = activeCar.photo_url;
-            img.style.display = 'block';
-            placeholder.style.display = 'none';
-            document.getElementById('photo-delete-btn').style.display = 'flex';
-        }
-
-        async function handlePhotoUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = document.getElementById('car-photo-img');
-                const placeholder = document.getElementById('photo-placeholder');
-                img.src = e.target.result;
-                img.style.display = 'block';
-                placeholder.style.display = 'none';
-                document.getElementById('photo-delete-btn').style.display = 'flex';
-            };
-            reader.readAsDataURL(file);
-            // Upload to server
-            const formData = new FormData();
-            formData.append('file', file);
-            try {
-                const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'POST', body: formData });
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                activeCar.photo_url = data.photo_url;
-                toast('Photo saved ✓');
-            } catch (e) { toast('Photo upload failed'); }
-        }
-
-        async function deleteCarPhoto() {
-            if (!await pitcrewConfirm('Delete this photo?')) return;
-            try {
-                const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'DELETE' });
-                if (!res.ok) throw new Error(await res.text());
-                activeCar.photo_url = null;
-                document.getElementById('car-photo-img').style.display = 'none';
-                document.getElementById('photo-placeholder').style.display = 'block';
-                document.getElementById('photo-delete-btn').style.display = 'none';
-                document.getElementById('photo-input').value = '';
-                toast('Photo deleted ✓');
-            } catch (e) { toast('Photo delete failed'); }
-        }
-
-        async function loadGarage() {
-            let cars = [];
-            try { cars = await api('GET', '/api/cars'); } catch (e) { console.error(e); }
-
-            const grid = document.getElementById('car-grid');
-            document.getElementById('car-count').textContent = cars.length ? `(${cars.length})` : '';
-            grid.innerHTML = '';
-
-            cars.forEach(car => {
-                const card = document.createElement('div');
-                card.className = 'car-card';
-                card.innerHTML = `
-                <div class="car-card-actions">
-                    <button onclick="event.stopPropagation(); removeCar(${car.id})">Remove</button>
-                </div>
-                <div class="car-nickname">${carSpec(car) || 'Unknown Car'}</div>
-                <div class="car-spec">${car.options || ''}</div>
-            `;
-                card.addEventListener('click', () => showCar(car));
-                grid.appendChild(card);
-            });
-
-            const addCard = document.createElement('div');
-            addCard.className = 'add-car-card';
-            addCard.innerHTML = `<div class="plus">+</div><div class="add-label">Add a Car</div>`;
-            addCard.addEventListener('click', openAddCarModal);
-            grid.appendChild(addCard);
-        }
-
-        async function removeCar(id) {
-            if (!await pitcrewConfirm('Remove this car from your garage?')) return;
-            try {
-                await api('DELETE', `/api/cars/${id}`);
-                toast('Car removed');
-                loadGarage();
-            } catch (e) { toast('Error removing car'); }
-        }
-
-        // ── Car Info ─────────────────────────────────────────────────────────────
-        function populateCarInfoForm() {
-            if (!activeCar) return;
-            ['options', 'year', 'make', 'model', 'trim', 'engine', 'color', 'vin', 'notes'].forEach(f => {
-                const el = document.getElementById(`info-${f}`);
-                if (el) el.value = activeCar[f] ?? '';
-            });
-        }
-
-        async function saveCarInfo(e) {
-            e.preventDefault();
-            const payload = {
-                options: document.getElementById('info-options').value || null,
-                year: parseInt(document.getElementById('info-year').value) || null,
-                make: document.getElementById('info-make').value || null,
-                model: document.getElementById('info-model').value || null,
-                trim: document.getElementById('info-trim').value || null,
-                engine: document.getElementById('info-engine').value || null,
-                color: document.getElementById('info-color').value || null,
-                vin: document.getElementById('info-vin').value || null,
-                notes: document.getElementById('info-notes').value || null,
-            };
-            try {
-                activeCar = await api('PATCH', `/api/cars/${activeCar.id}`, payload);
-                const spec = carSpec(activeCar);
-                document.getElementById('header-car-name').textContent = spec || 'Unknown Car';
-                document.getElementById('header-car-spec').textContent = '';
-                document.getElementById('sidebar-car-name').textContent = spec || 'Unknown Car';
-                document.getElementById('sidebar-car-spec').textContent = activeCar.options || '';
-                toast('Saved ✓');
-            } catch (e) { toast('Save failed'); }
-        }
-
-        // ── Add Car Modal ────────────────────────────────────────────────────────
-        function openAddCarModal() {
-            document.getElementById('form-add-car').reset();
-            document.getElementById('modal-add-car').classList.add('open');
-            document.getElementById('add-options').focus();
-        }
-
-        function closeModal() {
-            document.getElementById('modal-add-car').classList.remove('open');
-        }
-
-        document.getElementById('modal-add-car').addEventListener('click', function (e) {
-            if (e.target === this) closeModal();
-        });
-
-        async function submitAddCar(e) {
-            e.preventDefault();
-            const payload = {
-                options: document.getElementById('add-options').value || null,
-                year: parseInt(document.getElementById('add-year').value) || null,
-                make: document.getElementById('add-make').value || null,
-                model: document.getElementById('add-model').value || null,
-                trim: document.getElementById('add-trim').value || null,
-            };
-            try {
-                await api('POST', '/api/cars', payload);
-                closeModal();
-                toast('Car added to garage ✓');
-                loadGarage();
-            } catch (e) { toast('Error adding car'); }
-        }
-
-        // ── Cart ─────────────────────────────────────────────────────────
-        let cartParts = [];
-        let cartCategory = 'all';
-
-        async function loadCartParts() {
-            if (!activeCar) return;
-            try {
-                cartParts = await api('GET', `/api/cars/${activeCar.id}/parts`);
-            } catch (e) {
-                toast('Error loading parts');
-                cartParts = [];
-            }
-            renderCartParts();
-        }
-
-        function filterCartCategory(cat, btnEl) {
-            cartCategory = cat;
-            document.querySelectorAll('#section-cart .section-tab').forEach(b => b.classList.remove('active'));
-            btnEl.classList.add('active');
-            renderCartParts();
-        }
-
-        function renderCartParts() {
-            const list = document.getElementById('cart-parts-list');
-            if (!list) return;
-            const visible = cartCategory === 'all'
-                ? cartParts
-                : cartParts.filter(p => p.category === cartCategory);
-
-            const rows = visible.map(p => `
-                <tr>
-                    <td>${p.name}</td>
-                    <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}</td>
-                    <td>${p.part_number || '-'}</td>
-                    <td>${p.quantity || 1}</td>
-                    <td>${p.price != null ? '$' + Number(p.price).toFixed(2) : '-'}</td>
-                    <td>${p.url ? `<a href="${p.url}" target="_blank" rel="noopener">${p.url}</a>` : '-'}</td>
-                    <td>${p.category || '-'}</td>
-                    <td>${p.notes || '-'}</td>
-                    <td><select class="status-select status-${p.status || 'wishlist'}" onchange="updatePartStatus(${p.id}, this.value)"><option value="wishlist"${(!p.status || p.status === 'wishlist') ? ' selected' : ''}>Wishlist</option><option value="ordered"${p.status === 'ordered' ? ' selected' : ''}>Ordered</option><option value="received"${p.status === 'received' ? ' selected' : ''}>Received</option><option value="installed"${p.status === 'installed' ? ' selected' : ''}>Installed</option></select></td>
-                    <td class="parts-table-actions">
-                        <button class="btn btn-ghost" onclick="openEditPartModal(${p.id})">Edit</button>
-                        <button class="btn btn-ghost" onclick="deleteCartPart(${p.id})">Delete</button>
-                    </td>
-                </tr>`).join('');
-
-            list.innerHTML = `
-                <div class="table-scroll">
-                <table class="parts-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Date</th>
-                            <th>Part #</th>
-                            <th>Qty</th>
-                            <th>Price</th>
-                            <th>Link</th>
-                            <th>Category</th>
-                            <th>Notes</th>
-                            <th>Status</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows || '<tr><td colspan="10" class="parts-table-empty">No parts yet</td></tr>'}</tbody>
-                    <tfoot>
-                        <tr>
-                            <td colspan="10">
-                                <button class="btn btn-ghost" onclick="openAddPartModal()">+ Add Part</button>
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-                </div>`;
-        }
-
-        let editingPartId = null;
-
-        function openAddPartModal() {
-            editingPartId = null;
-            document.getElementById('form-add-part').reset();
-            document.getElementById('part-quantity').value = '1';
-            document.querySelector('#modal-add-part h3').textContent = 'Add Part';
-            document.querySelector('#form-add-part .btn-primary').textContent = 'Add Part';
-            document.getElementById('modal-add-part').classList.add('open');
-            document.getElementById('part-name').focus();
-        }
-
-        function openEditPartModal(id) {
-            const p = cartParts.find(p => p.id === id);
-            if (!p) return;
-            editingPartId = id;
-            document.getElementById('form-add-part').reset();
-            document.getElementById('part-name').value = p.name || '';
-            document.getElementById('part-number-input').value = p.part_number || '';
-            document.getElementById('part-category').value = p.category || 'Mechanical';
-            document.getElementById('part-quantity').value = p.quantity || 1;
-            document.getElementById('part-price').value = p.price != null ? p.price : '';
-            document.getElementById('part-url').value = p.url || '';
-            document.getElementById('part-notes').value = p.notes || '';
-            document.querySelector('#modal-add-part h3').textContent = 'Edit Part';
-            document.querySelector('#form-add-part .btn-primary').textContent = 'Save Changes';
-            document.getElementById('modal-add-part').classList.add('open');
-            document.getElementById('part-name').focus();
-        }
-
-        function closeAddPartModal() {
-            document.getElementById('modal-add-part').classList.remove('open');
-            editingPartId = null;
-        }
-
-        document.getElementById('modal-add-part').addEventListener('click', function (e) {
-            if (e.target === this) closeAddPartModal();
-        });
-
-        async function deleteCartPart(id) {
-            if (!await pitcrewConfirm('Remove this part?')) return;
-            try {
-                await api('DELETE', `/api/parts/${id}`);
-                cartParts = cartParts.filter(p => p.id !== id);
-                renderCartParts();
-                toast('Part removed ✓');
-            } catch (e) { toast('Error removing part'); }
-        }
-
-        async function updatePartStatus(id, status) {
-            try {
-                const updated = await api('PATCH', `/api/parts/${id}`, { status });
-                const i = cartParts.findIndex(p => p.id === id);
-                if (i >= 0) cartParts[i] = updated;
-                toast('Status updated ✓');
-                renderCartParts();
-            } catch (e) {
-                toast('Error updating status');
-                renderCartParts();
-            }
-        }
-
-        async function submitAddPart(e) {
-            e.preventDefault();
-            const payload = {
-                name: document.getElementById('part-name').value,
-                part_number: document.getElementById('part-number-input').value || null,
-                category: document.getElementById('part-category').value,
-                quantity: parseInt(document.getElementById('part-quantity').value) || 1,
-                price: parseFloat(document.getElementById('part-price').value) || null,
-                url: document.getElementById('part-url').value || null,
-                notes: document.getElementById('part-notes').value || null,
-            };
-            try {
-                if (editingPartId) {
-                    const updated = await api('PATCH', `/api/parts/${editingPartId}`, payload);
-                    const i = cartParts.findIndex(p => p.id === editingPartId);
-                    if (i >= 0) cartParts[i] = updated;
-                    closeAddPartModal();
-                    renderCartParts();
-                    toast('Part updated ✓');
-                } else {
-                    await api('POST', `/api/cars/${activeCar.id}/parts`, payload);
-                    closeAddPartModal();
-                    await loadCartParts();
-                    toast('Part added ✓');
-                }
-            } catch (e) { toast('Error saving part'); }
-        }
-
-        // ── Manual (Documents) ────────────────────────────────────────────────────
-        let manuals = [];
-
-        function showManualTab(tab, btnEl) {
-            document.querySelectorAll('#section-manual .section-tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('#section-manual .section-tab').forEach(b => b.classList.remove('active'));
-            document.getElementById(`manual-tab-${tab}`).classList.add('active');
-            btnEl.classList.add('active');
-        }
-
-        async function loadManuals() {
-            if (!activeCar) return;
-            selectedManualIds = new Set();
-            try {
-                manuals = await api('GET', `/api/cars/${activeCar.id}/manuals`);
-            } catch (e) {
-                manuals = [];
-            }
-            ['manual', 'reference', 'other'].forEach(renderManualGrid);
-            updateDocAskBtn();
-        }
-
-        function renderManualGrid(category) {
-            const grid = document.getElementById(`manual-grid-${category}`);
-            if (!grid) return;
-            grid.innerHTML = '';
-
-            const items = manuals.filter(m => (m.category || 'manual') === category);
-            items.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'manual-card' + (selectedManualIds.has(m.id) ? ' selected' : '');
-                card.dataset.id = m.id;
-                const date = new Date(m.created_at + 'Z').toLocaleDateString();
-                card.innerHTML = `
-                    <div class="manual-card-actions">
-                        <button onclick="event.stopPropagation(); deleteManual(${m.id})">Remove</button>
-                    </div>
-                    <label class="manual-card-check" onclick="event.stopPropagation(); toggleManualSelect(${m.id}, this.closest('.manual-card'))">
-                        <svg class="check-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <rect width="14" height="14" rx="3" fill="currentColor" opacity="0.12"/>
-                            <path class="check-mark" d="M3 7l3 3 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
-                        </svg>
-                    </label>
-                    <div class="manual-card-title">${escapeHtml(m.title)}</div>
-                    <div class="manual-card-date">${date}</div>
-                `;
-                card.addEventListener('click', () => openDocFile(m));
-                grid.appendChild(card);
-            });
-
-            const addCard = document.createElement('div');
-            addCard.className = 'add-car-card';
-            addCard.innerHTML = `<div class="plus">+</div><div class="add-label">Add File</div>`;
-            addCard.addEventListener('click', () => document.getElementById(`manual-file-input-${category}`).click());
-            grid.appendChild(addCard);
-        }
-
-        function toggleManualSelect(id, cardEl) {
-            if (selectedManualIds.has(id)) {
-                selectedManualIds.delete(id);
-                cardEl.classList.remove('selected');
-            } else {
-                selectedManualIds.add(id);
-                cardEl.classList.add('selected');
-            }
-            updateDocAskBtn();
-        }
-
-        function updateDocAskBtn() {
-            const btn = document.getElementById('doc-ask-btn');
-            if (!btn) return;
-            const n = selectedManualIds.size;
-            btn.disabled = n === 0;
-            btn.textContent = n > 0 ? `Ask AI (${n} doc${n > 1 ? 's' : ''})` : 'Ask AI';
-        }
-
-        async function handleManualUpload(event, category) {
-            const files = Array.from(event.target.files);
-            if (!files.length) return;
-            for (const file of files) {
-                const formData = new FormData();
-                formData.append('file', file);
-                try {
-                    const res = await fetch(`/api/cars/${activeCar.id}/manuals?category=${category}`, {
-                        method: 'POST', body: formData,
-                    });
-                    if (!res.ok) throw new Error(await res.text());
-                    toast(`${file.name} uploaded ✓`);
-                } catch (e) {
-                    toast(`Failed: ${file.name}`);
-                }
-            }
-            event.target.value = '';
-            await loadManuals();
-        }
-
-        async function deleteManual(id) {
-            if (!await pitcrewConfirm('Remove this file?')) return;
-            try {
-                await api('DELETE', `/api/manuals/${id}`);
-                manuals = manuals.filter(m => m.id !== id);
-                ['manual', 'reference', 'other'].forEach(renderManualGrid);
-                toast('File removed ✓');
-            } catch (e) { toast('Error removing file'); }
-        }
-
-        async function askDocuments() {
-            const input = document.getElementById('doc-ask-input');
-            const question = input?.value?.trim();
-            if (!question) { toast('Enter a question first'); return; }
-            if (selectedManualIds.size === 0) { toast('Check at least one document first'); return; }
-            const btn = document.getElementById('doc-ask-btn');
-            btn.disabled = true;
-            btn.textContent = 'Asking...';
-            const resultEl = document.getElementById('doc-ask-result');
-            const answerEl = document.getElementById('doc-ask-answer');
-            resultEl.style.display = 'none';
-            lastDocAnswer = null;
-            try {
-                const data = await api('POST', `/api/cars/${activeCar.id}/manuals/ask`, {
-                    question,
-                    manual_ids: [...selectedManualIds],
-                });
-                lastDocAnswer = { question, answer: data.answer, sources: data.sources || [] };
-                answerEl.innerHTML = '<p>' + renderMarkdown(data.answer) + '</p>';
-                if (data.sources?.length) {
-                    answerEl.innerHTML += `<p style="margin-top:10px;font-size:11px;color:var(--muted)">Sources: ${data.sources.map(s => escapeHtml(s)).join(', ')}</p>`;
-                }
-                resultEl.style.display = 'block';
-                input.value = '';
-            } catch (e) {
-                toast('AI search failed');
-            } finally {
-                btn.disabled = selectedManualIds.size === 0;
-                updateDocAskBtn();
-            }
-        }
-
-        async function saveDocSearch() {
-            if (!lastDocAnswer) return;
-            const saveBtn = document.getElementById('doc-ask-save-btn');
-            saveBtn.disabled = true;
-            try {
-                const sources = lastDocAnswer.sources.length ? ` [${lastDocAnswer.sources.join(', ')}]` : '';
-                const entry = await api('POST', `/api/cars/${activeCar.id}/journal`, {
-                    type: 'docsearch',
-                    title: lastDocAnswer.question,
-                    body: lastDocAnswer.answer + (sources ? `\n\nSources: ${lastDocAnswer.sources.join(', ')}` : ''),
-                });
-                journalEntries.unshift(entry);
-                renderJournalTab('docsearch');
-                saveBtn.textContent = 'Saved ✓';
-                toast('Saved to Journal ✓');
-            } catch (e) {
-                toast('Failed to save');
-                saveBtn.disabled = false;
-            }
-        }
-
-        // ── File viewer / downloader ──────────────────────────────────────────────
-        function openDocFile(doc) {
-            const fp = doc.file_path.toLowerCase();
-            if (fp.endsWith('.pdf')) {
-                document.getElementById('pdf-title').textContent = doc.title;
-                document.getElementById('pdf-frame').src = doc.file_path;
-                document.getElementById('pdf-viewer-overlay').style.display = 'flex';
-                document.body.style.overflow = 'hidden';
-            } else if (/\.(jpe?g|png|webp|gif|svg|bmp)$/.test(fp)) {
-                window.open(doc.file_path, '_blank', 'noopener');
-            } else {
-                const a = document.createElement('a');
-                a.href = doc.file_path;
-                a.download = doc.title;
-                a.click();
-            }
-        }
-
-        function closePdfViewer() {
-            document.getElementById('pdf-viewer-overlay').style.display = 'none';
-            document.getElementById('pdf-frame').src = '';
-            document.body.style.overflow = '';
-        }
-
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') {
-                if (document.getElementById('pdf-viewer-overlay').style.display !== 'none') {
-                    closePdfViewer();
-                } else {
-                    closeModal();
-                    closeAddPartModal();
-                }
-            }
-        });
-
-        // ── Custom prompt ──────────────────────────────────────────────────────
-        let _pendingPrompt = null;
-        function pitcrewPrompt({ title = 'Add Pin', labelText = 'Label', labelPlaceholder = '', okLabel = 'Add Pin', showNotes = true } = {}) {
-            return new Promise(resolve => {
-                _pendingPrompt = resolve;
-                document.getElementById('prompt-title').textContent = title;
-                document.getElementById('prompt-label-label').textContent = labelText;
-                document.getElementById('prompt-label-input').placeholder = labelPlaceholder;
-                document.getElementById('prompt-label-input').value = '';
-                document.getElementById('prompt-notes-input').value = '';
-                document.getElementById('prompt-notes-wrap').style.display = showNotes ? '' : 'none';
-                document.getElementById('prompt-ok-btn').textContent = okLabel;
-                document.getElementById('prompt-overlay').classList.add('open');
-                setTimeout(() => document.getElementById('prompt-label-input').focus(), 60);
-            });
-        }
-        function _submitPrompt() {
-            const labelEl = document.getElementById('prompt-label-input');
-            const label = labelEl.value.trim();
-            if (!label) { labelEl.focus(); return; }
-            const notes = document.getElementById('prompt-notes-input').value.trim() || null;
-            _resolvePrompt({ label, notes });
-        }
-        function _resolvePrompt(result) {
-            document.getElementById('prompt-overlay').classList.remove('open');
-            if (_pendingPrompt) {
-                const fn = _pendingPrompt;
-                _pendingPrompt = null;
-                fn(result);
-            }
-        }
-
-        // ── Custom confirm ────────────────────────────────────────────────────────
-        let _pendingConfirm = null;
-        function pitcrewConfirm(message, okLabel = 'Delete') {
-            return new Promise(resolve => {
-                _pendingConfirm = resolve;
-                document.getElementById('confirm-message').textContent = message;
-                document.getElementById('confirm-ok-btn').textContent = okLabel;
-                document.getElementById('confirm-overlay').classList.add('open');
-            });
-        }
-        function _resolveConfirm(result) {
-            document.getElementById('confirm-overlay').classList.remove('open');
-            if (_pendingConfirm) {
-                const fn = _pendingConfirm;
-                _pendingConfirm = null;
-                fn(result);
-            }
-        }
-
-        // ── Boot ─────────────────────────────────────────────────────────────────
-        loadGarage();
-    </script>
-
-    <!-- Text Prompt Dialog -->
-    <!-- Text Prompt Dialog -->
-    <div class="modal-overlay" id="prompt-overlay" onclick="if(event.target===this)_resolvePrompt(null)">
+    <!-- Prompt Dialog -->
+    <div class="modal-overlay" id="prompt-overlay">
         <div class="modal confirm-modal">
             <h3 id="prompt-title">Add Pin</h3>
             <div class="prompt-fields">
                 <div>
                     <label for="prompt-label-input" id="prompt-label-label">Component label</label>
-                    <input type="text" id="prompt-label-input"
-                        onkeydown="if(event.key==='Enter')document.getElementById('prompt-notes-input').focus()" />
+                    <input type="text" id="prompt-label-input" />
                 </div>
                 <div id="prompt-notes-wrap">
                     <label for="prompt-notes-input">Notes <span style="font-weight:400">(optional)</span></label>
-                    <input type="text" id="prompt-notes-input"
-                        onkeydown="if(event.key==='Enter')_submitPrompt()" />
+                    <input type="text" id="prompt-notes-input" />
                 </div>
             </div>
             <div class="confirm-actions">
-                <button class="btn btn-ghost" onclick="_resolvePrompt(null)">Cancel</button>
-                <button class="btn btn-primary" id="prompt-ok-btn" onclick="_submitPrompt()">Add Pin</button>
+                <button class="btn btn-ghost">Cancel</button>
+                <button class="btn btn-primary" id="prompt-ok-btn">Add Pin</button>
             </div>
         </div>
     </div>
 
     <!-- Confirm Dialog -->
-    <div class="modal-overlay" id="confirm-overlay" onclick="if(event.target===this)_resolveConfirm(false)">
+    <div class="modal-overlay" id="confirm-overlay">
         <div class="modal confirm-modal">
             <p class="confirm-message" id="confirm-message"></p>
             <div class="confirm-actions">
-                <button class="btn btn-ghost" onclick="_resolveConfirm(false)">Cancel</button>
-                <button class="btn btn-danger" id="confirm-ok-btn" onclick="_resolveConfirm(true)">Delete</button>
+                <button class="btn btn-ghost">Cancel</button>
+                <button class="btn btn-danger" id="confirm-ok-btn">Delete</button>
             </div>
         </div>
     </div>
+
+    <script type="module" src="/static/js/app.js"></script>
 
 </body>
 

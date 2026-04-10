@@ -767,6 +767,14 @@ main {
     border-bottom-color: var(--accent);
 }
 
+/* ── View photo grid (Photo Pins section) ─────────────────────────────────── */
+
+.view-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 280px));
+    gap: 14px;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
 /* Tablet (≤ 900px) */
@@ -1017,14 +1025,6 @@ main {
         justify-content: center;
         text-align: center;
     }
-}
-
-/* ── View photo grid (Photo Pins section) ─────────────────────────────────── */
-
-.view-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 280px));
-    gap: 14px;
 }
 
 /* ── Manual grid ─────────────────────────────────────────────────────────── */
@@ -1301,15 +1301,6 @@ main {
     white-space: nowrap;
 }
 
-@media (max-width: 640px) {
-    .journal-text {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: unset;
-        word-break: break-word;
-    }
-}
-
 .research-answer-row td {
     padding: 4px 0 12px;
 }
@@ -1580,7 +1571,7 @@ main {
 }
 
 .pin-research-loading {
-    color: var(--text-2);
+    color: var(--muted);
     font-style: italic;
 }
 

@@ -55,12 +55,102 @@ Single `index.html` + `style.css`. No build step. Two views: Garage and Car.
 
 ---
 
-## Future / Nice to Have
+## Roadmap
+
+### Phase 1 — Hardening (do before adding more data)
+
+**SQLite robustness**
+- Enable WAL mode (`PRAGMA journal_mode=WAL`) on startup — dramatically better read performance and prevents "database is locked" errors under concurrent async queries.
+- Enable `PRAGMA foreign_keys=ON` per connection — foreign keys are defined in the schema but SQLite ignores them unless you opt in. Cascading deletes (`ON DELETE CASCADE`) don't actually fire right now.
+- Wrap every write function in a try/except that catches `aiosqlite.IntegrityError` and `aiosqlite.OperationalError`, returning meaningful errors to the caller instead of silently passing or letting 500s propagate.
+- Validate update fields against allowed values — `parts.status` should reject anything outside `wishlist|ordered|received|installed`, `parts.category` should reject unknown categories, `journal.type` should only accept `research|note|converse|docsearch`. Add CHECK constraints to the schema and validate in `db.py` before executing.
+- Confirm rows were actually affected after UPDATE/DELETE — check `cursor.rowcount` and return 404 if 0 rows matched. Currently a `PATCH /api/parts/999999` silently succeeds.
+
+**Connection management**
+- Stop opening a new `aiosqlite.connect()` per query. Create a single long-lived connection (or a small pool) at startup and share it across requests. This also ensures WAL mode and `foreign_keys=ON` stay active.
+
+**Pagination**
+- Add `?limit=50&offset=0` to `GET /api/cars/{id}/journal`, `/parts`, `/manuals`, and the frontend. Without this, hundreds of journal entries or parts will bog down both the DB and the DOM.
+
+**Logging**
+- Add `logging.getLogger(__name__)` to `app.py` and `db.py`. Log AI calls (model, token count, latency), DB errors, and slow queries. Right now a failed Gemini call or corrupt DB returns a generic error with zero debug info.
+
+**Background text extraction**
+- Move PDF/DOCX text extraction on manual upload to `fastapi.BackgroundTasks`. A 200-page PDF currently blocks the upload request until extraction finishes.
+
+---
+
+### Phase 2 — Split the backend
+
+The goal is reducing cognitive overhead, not building a framework. Three modules:
+
+```
+backend/
+├── app.py          → FastAPI app, lifespan, static mount, top-level error handler
+├── db.py           → connection management, schema, migrations, raw CRUD
+├── routes/
+│   ├── cars.py     → car CRUD + photo upload
+│   ├── journal.py  → journal CRUD + research endpoint
+│   ├── views.py    → photo views + pins + pin research
+│   ├── parts.py    → parts/cart CRUD
+│   └── manuals.py  → manual upload/delete + document search
+├── services/
+│   └── gemini.py   → all Gemini API calls, prompt building (absorbs prompt.py)
+└── prompt.py       → (remove, fold into services/gemini.py)
+```
+
+Each route file is a `fastapi.APIRouter`. `app.py` just mounts them. `services/gemini.py` owns all AI interaction — prompt construction, EXIF stripping before send, error handling, token logging.
+
+---
+
+### Phase 3 — Media & storage
+
+- **Image compression on upload** — resize to max 2048px on longest edge via Pillow, generate a 400px thumbnail for grid views. Saves disk and speeds up frontend rendering.
+- **Upload size limits** — enforce max file size in the route (e.g. 20MB photos, 100MB manuals) before writing to disk.
+- **Better document chunking** — current 8000-char fixed chunks with keyword overlap will miss relevant content in long manuals. Switch to overlapping chunks (2000 chars, 500 char overlap) and send more of them.
+
+---
+
+### Phase 4 — Frontend restructure
+
+Split the monolithic `index.html` (~1550 lines) and `style.css` (~1620 lines) into logical modules. No framework — just ES modules and separate CSS files, loaded by the same `index.html`.
+
+```
+static/
+├── index.html          → shell: HTML structure only, no <script> body
+├── style.css           → base: reset, variables, layout, header, buttons, modals, toast
+├── css/
+│   ├── garage.css      → car grid, add-car card
+│   ├── car-info.css    → photo upload, info form
+│   ├── journal.css     → journal tabs, research answers, add forms
+│   ├── pins.css        → view grid, thumbnails, pin overlay, pin list, research results
+│   ├── cart.css         → parts table, status selects
+│   ├── manuals.css     → manual grid, cards, PDF viewer
+│   └── responsive.css  → all @media blocks in one place
+├── js/
+│   ├── app.js          → boot, api(), toast(), escapeHtml(), renderMarkdown(), shared state
+│   ├── garage.js       → loadGarage(), removeCar(), add-car modal
+│   ├── car.js          → showCar(), showSection(), populateCarInfoForm(), saveCarInfo()
+│   ├── journal.js      → loadJournal(), renderJournalTab(), runResearch(), addJournalEntry()
+│   ├── pins.js         → loadViews(), renderViewTab(), handlePinDrop(), researchPin()
+│   ├── cart.js          → loadCartParts(), renderCartParts(), submitAddPart()
+│   ├── manuals.js      → loadManuals(), renderManualGrid(), askDocuments()
+│   └── dialogs.js      → pitcrewPrompt(), pitcrewConfirm()
+```
+
+Each JS module exports its public functions, `app.js` imports and wires them. HTML uses `<script type="module" src="/static/js/app.js">` — no bundler needed, native ES modules work in all modern browsers.
+
+CSS files are loaded via `<link>` tags in `index.html`. Keeping `responsive.css` separate means all breakpoint overrides live in one file instead of scattered across sections.
+
+---
+
+### Phase 5 — Nice to have
 
 - **Parts from Converse → Cart** — one-click to save an AI-suggested part directly to the cart
-- **AI document reading** — pass Other-tab files to an AI so it can answer questions from your own uploaded docs
 - **Export** — CSV/PDF parts list for the shop
 - **Mobile** — responsive CSS is roughed in but needs work on narrow screens
+- **Streaming AI responses** — SSE for research queries so results appear incrementally
+- **Search across cars** — global search for journal entries, parts, pins by keyword
 
 ---
 

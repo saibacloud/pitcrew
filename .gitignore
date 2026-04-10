@@ -51,5 +51,5 @@ Thumbs.db
 # Logs
 *.log
 
-# Docker export archives
+# Docker export
 *.tar.gz
