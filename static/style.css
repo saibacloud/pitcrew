@@ -68,7 +68,7 @@ body {
 }
 
 .logo em {
-    color: var(--accent);
+    color: #e63946;
     font-style: normal;
 }
 
@@ -87,11 +87,12 @@ body {
     align-items: center;
     gap: 6px;
     font-size: 13px;
-    color: var(--muted);
+    font-weight: 600;
+    color: var(--text);
     cursor: pointer;
-    background: none;
-    border: none;
-    padding: 5px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
     border-radius: 7px;
     font-family: inherit;
     transition: color 0.15s, background 0.15s;
@@ -99,7 +100,7 @@ body {
 
 .back-btn:hover {
     color: var(--text);
-    background: var(--surface-2);
+    background: var(--surface-3, rgba(255, 255, 255, 0.08));
 }
 
 .header-right {
@@ -1190,7 +1191,7 @@ main {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 10px 20px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 20px 10px;
     background: #111;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;

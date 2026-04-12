@@ -1,7 +1,7 @@
 // PitCrew — manuals / documents
 
 import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
-import { pitcrewConfirm, closePdfViewer } from './dialogs.js';
+import { pitcrewConfirm } from './dialogs.js';
 import { lastDocAnswer, setLastDocAnswer } from './journal.js';
 
 let manuals = [];
@@ -145,12 +145,7 @@ async function askDocuments() {
 
 function openDocFile(doc) {
     const fp = doc.file_path.toLowerCase();
-    if (fp.endsWith('.pdf')) {
-        document.getElementById('pdf-title').textContent = doc.title;
-        document.getElementById('pdf-frame').src = doc.file_path;
-        document.getElementById('pdf-viewer-overlay').style.display = 'flex';
-        document.body.style.overflow = 'hidden';
-    } else if (/\.(jpe?g|png|webp|gif|svg|bmp)$/.test(fp)) {
+    if (fp.endsWith('.pdf') || /\.(jpe?g|png|webp|gif|svg|bmp)$/.test(fp)) {
         window.open(doc.file_path, '_blank', 'noopener');
     } else {
         const a = document.createElement('a');
@@ -191,9 +186,6 @@ export function initManuals() {
         document.getElementById('doc-ask-result').style.display = 'none';
         setLastDocAnswer(null);
     });
-
-    // PDF close
-    document.querySelector('.pdf-close-btn').addEventListener('click', closePdfViewer);
 
     // Delegated clicks in manual section
     document.getElementById('section-manual').addEventListener('click', e => {
