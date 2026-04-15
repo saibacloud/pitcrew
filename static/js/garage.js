@@ -6,7 +6,10 @@ import { pitcrewConfirm } from './dialogs.js';
 
 export async function loadGarage() {
     let cars = [];
-    try { cars = await api('GET', '/api/cars'); } catch (e) { console.error(e); }
+    try { cars = await api('GET', '/api/cars'); } catch (e) {
+        if (e.message === 'Unauthorized') throw e;
+        console.error(e);
+    }
 
     const grid = document.getElementById('car-grid');
     document.getElementById('car-count').textContent = cars.length ? `(${cars.length})` : '';
