@@ -1,6 +1,6 @@
-// PitCrew — journal (research, notes, converse, doc search)
+// PitCrew — journal (research, notes, converse, doc search, photos)
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, authHeaders, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let journalEntries = [];
@@ -32,6 +32,7 @@ export async function loadJournal(append = false) {
     renderJournalTab('converse');
     renderJournalTab('note');
     renderJournalTab('docsearch');
+    renderPhotoTab();
 }
 
 function renderJournalTab(type) {
@@ -136,6 +137,7 @@ async function deleteJournalEntry(id) {
         await api('DELETE', `/api/journal/${id}`);
         journalEntries = journalEntries.filter(e => e.id !== id);
         ['research', 'converse', 'note', 'docsearch'].forEach(renderJournalTab);
+        renderPhotoTab();
         toast('Entry deleted');
     } catch (e) { toast('Error deleting entry'); }
 }
@@ -145,6 +147,72 @@ export function showJournalTab(tabId, btnEl) {
     document.querySelectorAll('#section-journal .section-tab').forEach(b => b.classList.remove('active'));
     document.getElementById(`journal-${tabId}`).classList.add('active');
     btnEl.classList.add('active');
+}
+
+// ── Photo journal ───────────────────────────────────────────────────────────
+
+function renderPhotoTab() {
+    const grid = document.getElementById('journal-photo-grid');
+    if (!grid) return;
+    const photos = journalEntries.filter(e => e.type === 'photo' && e.photo_url);
+    if (!photos.length) {
+        grid.innerHTML = '<p class="parts-table-empty">No photos yet</p>';
+        return;
+    }
+    // Group by date
+    const groups = {};
+    for (const p of photos) {
+        const date = new Date(p.created_at + 'Z').toLocaleDateString(undefined, {
+            weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+        });
+        if (!groups[date]) groups[date] = [];
+        groups[date].push(p);
+    }
+    grid.innerHTML = Object.entries(groups).map(([date, items]) => `
+        <div class="photo-date-group">
+            <div class="photo-date-heading">${date}</div>
+            <div class="photo-date-grid">
+                ${items.map(p => `
+                    <div class="photo-card" data-id="${p.id}">
+                        <img src="${escapeHtml(p.photo_url)}" alt="" loading="lazy" />
+                        <div class="photo-card-meta">
+                            <span class="photo-card-comment">${escapeHtml(p.title !== 'Photo' ? p.title : '')}</span>
+                            <button class="btn btn-ghost" data-action="delete-journal" data-id="${p.id}">Delete</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function uploadJournalPhoto(file) {
+    if (!activeCar || !file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('comment', '');
+    const btn = document.getElementById('photo-snap-btn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading…';
+    try {
+        const res = await fetch(`/api/cars/${activeCar.id}/journal/photo`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: fd,
+        });
+        if (res.status === 401) { toast('Unauthorized'); return; }
+        if (!res.ok) throw new Error(await res.text());
+        const entry = await res.json();
+        journalEntries.unshift(entry);
+        renderPhotoTab();
+        toast('Photo saved');
+    } catch (e) {
+        toast('Upload failed');
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Add Photo';
+    }
 }
 
 // ── Last doc answer (shared with manuals) ───────────────────────────────────
@@ -179,6 +247,14 @@ export async function saveDocSearch() {
 // ── Event delegation ────────────────────────────────────────────────────────
 
 export function initJournal() {
+    // Photo upload
+    const photoInput = document.getElementById('journal-photo-input');
+    document.getElementById('photo-snap-btn').addEventListener('click', () => photoInput.click());
+    photoInput.addEventListener('change', () => {
+        if (photoInput.files.length) uploadJournalPhoto(photoInput.files[0]);
+        photoInput.value = '';
+    });
+
     // Research search
     document.getElementById('research-input').addEventListener('keydown', e => {
         if (e.key === 'Enter') runResearch();

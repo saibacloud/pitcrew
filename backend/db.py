@@ -17,7 +17,7 @@ DB_PATH = os.environ.get(
 
 # ── Allowed enum values ──────────────────────────────────────────────────────
 
-VALID_JOURNAL_TYPES = {'research', 'note', 'converse', 'docsearch'}
+VALID_JOURNAL_TYPES = {'research', 'note', 'converse', 'docsearch', 'photo'}
 VALID_PART_STATUSES = {'wishlist', 'ordered', 'received', 'installed'}
 VALID_PART_CATEGORIES = {'Mechanical', 'Electrical', 'Body', 'Interior', 'Consumables'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
@@ -55,9 +55,10 @@ CREATE TABLE IF NOT EXISTS journal (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
     type        TEXT NOT NULL DEFAULT 'note'
-                CHECK(type IN ('research', 'note', 'converse', 'docsearch')),
+                CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo')),
     title       TEXT NOT NULL,
     body        TEXT,
+    photo_url   TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -195,6 +196,42 @@ async def init_db():
     except Exception:
         pass
 
+    # Add photo_url column to journal (may already exist on fresh installs)
+    try:
+        await db.execute("ALTER TABLE journal ADD COLUMN photo_url TEXT")
+        await db.commit()
+    except Exception:
+        pass
+
+    # Expand journal type CHECK to include 'photo'
+    try:
+        await db.execute(
+            "INSERT INTO journal (car_id, type, title) VALUES (NULL, 'photo', '__check_test__')"
+        )
+        await db.execute("DELETE FROM journal WHERE title = '__check_test__'")
+        await db.commit()
+    except Exception:
+        # CHECK constraint doesn't allow 'photo' — recreate table
+        await db.executescript("""
+            CREATE TABLE journal_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+                type        TEXT NOT NULL DEFAULT 'note'
+                            CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo')),
+                title       TEXT NOT NULL,
+                body        TEXT,
+                photo_url   TEXT,
+                deleted_at  TEXT,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO journal_new (id, car_id, type, title, body, photo_url, deleted_at, created_at)
+                SELECT id, car_id, type, title, body, photo_url, deleted_at, created_at FROM journal;
+            DROP TABLE journal;
+            ALTER TABLE journal_new RENAME TO journal;
+        """)
+        await db.commit()
+        log.info("Migrated journal table to support 'photo' type")
+
     log.info("Database initialised, migrations applied")
 
 
@@ -279,7 +316,7 @@ async def update_car_photo(car_id: int, photo_url: Optional[str]) -> int:
 
 # ── Journal ──────────────────────────────────────────────────────────────────
 
-_JOURNAL_FIELDS = ('type', 'title', 'body')
+_JOURNAL_FIELDS = ('type', 'title', 'body', 'photo_url')
 _LIVE_JOURNAL = "deleted_at IS NULL"
 
 
@@ -308,8 +345,8 @@ async def create_journal(car_id: int, data: dict) -> int:
     if j_type not in VALID_JOURNAL_TYPES:
         raise ValueError(f"Invalid journal type: {j_type}")
     return await _insert(
-        "INSERT INTO journal (car_id, type, title, body) VALUES (?, ?, ?, ?)",
-        (car_id, j_type, data.get('title', ''), data.get('body'))
+        "INSERT INTO journal (car_id, type, title, body, photo_url) VALUES (?, ?, ?, ?, ?)",
+        (car_id, j_type, data.get('title', ''), data.get('body'), data.get('photo_url'))
     )
 
 

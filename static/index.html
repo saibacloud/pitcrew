@@ -140,7 +140,8 @@
                         <button class="section-tab active" data-tab="research">Research</button>
                         <button class="section-tab" data-tab="converse">Converse</button>
                         <button class="section-tab" data-tab="note">Note</button>
-                        <button class="section-tab" data-tab="docsearch">Manual Searches</button>
+                        <button class="section-tab" data-tab="photo">Photos</button>
+                        <button class="section-tab" data-tab="docsearch">Doc Searches</button>
                     </div>
 
                     <div class="section-tab-content active" id="journal-research">
@@ -174,6 +175,14 @@
                             <thead><tr><th>Date</th><th>Note</th><th></th></tr></thead>
                             <tbody id="note-tbody"></tbody>
                         </table>
+                    </div>
+
+                    <div class="section-tab-content" id="journal-photo">
+                        <div class="journal-photo-upload">
+                            <button class="btn btn-primary" id="photo-snap-btn">Add Photo</button>
+                            <input type="file" id="journal-photo-input" accept="image/*" style="display:none" />
+                        </div>
+                        <div id="journal-photo-grid"></div>
                     </div>
 
                     <div class="section-tab-content" id="journal-docsearch">
