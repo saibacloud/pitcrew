@@ -2,9 +2,10 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from backend.auth import rate_limit_ai
 from backend.db import (
     get_car, get_journal, get_journals, count_journals,
     create_journal, update_journal, soft_delete_journal,
@@ -76,7 +77,7 @@ async def remove_journal(entry_id: int):
         raise HTTPException(404, 'Journal entry not found')
 
 
-@router.post('/cars/{car_id}/research', status_code=201)
+@router.post('/cars/{car_id}/research', status_code=201, dependencies=[Depends(rate_limit_ai)])
 async def research(car_id: int, req: ResearchRequest):
     car = await get_car(car_id)
     if not car:
@@ -85,8 +86,8 @@ async def research(car_id: int, req: ResearchRequest):
     prompt = gemini.build_research_prompt(car, req.query)
     try:
         answer = await gemini.research(prompt)
-    except Exception as e:
-        raise HTTPException(502, f'AI request failed: {e}')
+    except Exception:
+        raise HTTPException(502, 'AI request failed — try again shortly')
 
     entry_id = await create_journal(car_id, {
         'type': 'research',

@@ -1,6 +1,6 @@
 // PitCrew — manuals / documents
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG, authHeaders } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 import { lastDocAnswer, setLastDocAnswer } from './journal.js';
 
@@ -85,7 +85,7 @@ async function handleManualUpload(event, category) {
         formData.append('file', file);
         try {
             const res = await fetch(`/api/cars/${activeCar.id}/manuals?category=${category}`, {
-                method: 'POST', body: formData,
+                method: 'POST', body: formData, headers: authHeaders(),
             });
             if (!res.ok) throw new Error(await res.text());
             toast(`${file.name} uploaded`);

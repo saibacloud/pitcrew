@@ -366,6 +366,11 @@ async def create_view(car_id: int, name: str, angle: str, file_path: str) -> int
 
 
 async def soft_delete_view(view_id: int) -> int:
+    # Cascade: soft-delete pins belonging to this view
+    await _execute(
+        f"UPDATE photopins SET deleted_at = datetime('now') WHERE view_id = ? AND {_LIVE_PIN}",
+        (view_id,)
+    )
     return await _execute(
         f"UPDATE views SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_VIEW}",
         (view_id,)

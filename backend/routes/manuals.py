@@ -5,10 +5,11 @@ import os
 from pathlib import Path
 import time
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from google.genai import types
 
+from backend.auth import rate_limit_ai
 from backend.db import (
     get_car, get_manual, get_manuals,
     create_manual, soft_delete_manual,
@@ -123,7 +124,7 @@ class ManualAskBody(BaseModel):
     manual_ids: list[int]
 
 
-@router.post('/cars/{car_id}/manuals/ask')
+@router.post('/cars/{car_id}/manuals/ask', dependencies=[Depends(rate_limit_ai)])
 async def ask_manuals(car_id: int, body: ManualAskBody):
     """Answer a question using only the selected uploaded documents."""
     car = await get_car(car_id)
@@ -141,7 +142,9 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
             continue
         fp = doc.get('file_path', '')
         relative = fp.removeprefix('/static/')
-        filepath = os.path.join(STATIC_DIR, relative)
+        filepath = os.path.normpath(os.path.join(STATIC_DIR, relative))
+        if not filepath.startswith(os.path.normpath(STATIC_DIR)):
+            continue
         if not os.path.exists(filepath):
             continue
         ext = Path(filepath).suffix.lower()
@@ -152,7 +155,7 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
                     try:
                         await asyncio.to_thread(_extract_sidecar, filepath)
                     except Exception as extract_err:
-                        raise HTTPException(502, f'Could not extract text from "{doc["title"]}": {extract_err}. '
+                        raise HTTPException(502, f'Could not extract text from "{doc["title"]}". '
                                                  f'It may be a scanned/image-only PDF.')
                 with open(sidecar, 'r', encoding='utf-8') as f:
                     full_text = f.read().strip()
@@ -191,8 +194,8 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
             loaded.append(doc['title'])
         except HTTPException:
             raise
-        except Exception as e:
-            raise HTTPException(502, f'Error reading "{doc.get("title", "document")}": {e}')
+        except Exception:
+            raise HTTPException(502, f'Error reading "{doc.get("title", "document")}"')
 
     if not content_parts:
         raise HTTPException(400, 'Could not read any of the selected documents')
@@ -200,5 +203,5 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
     try:
         answer = await gemini.ask_documents(content_parts, car, body.question)
         return {'answer': answer, 'sources': loaded}
-    except Exception as e:
-        raise HTTPException(502, f'AI document search failed: {e}')
+    except Exception:
+        raise HTTPException(502, 'AI document search failed — try again shortly')

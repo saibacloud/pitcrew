@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 # Resolve .env relative to this file so it works regardless of cwd
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
+from backend.auth import require_token
 from backend.db import init_db, close_db
 from backend.routes.cars import router as cars_router
 from backend.routes.journal import router as journal_router
@@ -52,14 +53,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Mount routers
-app.include_router(cars_router)
-app.include_router(journal_router)
-app.include_router(views_router)
-app.include_router(parts_router)
-app.include_router(manuals_router)
+# All /api routes require bearer token
+api_deps = [Depends(require_token)]
+app.include_router(cars_router, dependencies=api_deps)
+app.include_router(journal_router, dependencies=api_deps)
+app.include_router(views_router, dependencies=api_deps)
+app.include_router(parts_router, dependencies=api_deps)
+app.include_router(manuals_router, dependencies=api_deps)
 
-# Static frontend
+# Static frontend (no auth — serves the login page)
 app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
 
 
@@ -75,7 +77,7 @@ class ChatRequest(BaseModel):
     car_id: Optional[int] = None
 
 
-@app.post('/api/chat')
+@app.post('/api/chat', dependencies=[Depends(require_token)])
 async def chat(req: ChatRequest):
     return {
         'response': f'(stub) you said: {req.message}',

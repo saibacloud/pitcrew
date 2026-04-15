@@ -7,7 +7,7 @@ import os
 import time
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 from google import genai
 from google.genai import types
 
@@ -123,6 +123,9 @@ def compress_for_storage(raw_bytes: bytes, max_edge: int = 2048) -> bytes:
     img = Image.open(io.BytesIO(raw_bytes))
     fmt = (img.format or 'JPEG').upper()
 
+    # Apply EXIF orientation before stripping so the pixels are correctly rotated
+    img = ImageOps.exif_transpose(img)
+
     # Strip EXIF
     save_kwargs: dict = {'format': fmt}
     if fmt in ('JPEG', 'WEBP'):
@@ -144,6 +147,7 @@ def compress_for_storage(raw_bytes: bytes, max_edge: int = 2048) -> bytes:
 def make_thumbnail(raw_bytes: bytes, size: int = 400) -> bytes:
     """Generate a square-ish thumbnail, always JPEG."""
     img = Image.open(io.BytesIO(raw_bytes))
+    img = ImageOps.exif_transpose(img)
     img = img.convert('RGB')
     w, h = img.size
     ratio = size / max(w, h)

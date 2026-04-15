@@ -15,6 +15,8 @@ router = APIRouter(prefix='/api', tags=['cars'])
 STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'static')
 UPLOADS_DIR = os.path.join(STATIC_DIR, 'uploads')
 
+MAX_CAR_PHOTO_UPLOAD = 20 * 1024 * 1024  # 20 MB
+
 
 class CarBody(BaseModel):
     year: Optional[int] = None
@@ -86,6 +88,8 @@ async def upload_car_photo(car_id: int, file: UploadFile = File(...)):
     if ext not in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
         raise HTTPException(400, 'Unsupported file type')
     contents = await file.read()
+    if len(contents) > MAX_CAR_PHOTO_UPLOAD:
+        raise HTTPException(400, f'File too large (max {MAX_CAR_PHOTO_UPLOAD // (1024*1024)}MB)')
     contents = compress_for_storage(contents)
     # Compressed images are saved in original format extension
     dest = os.path.join(UPLOADS_DIR, f'car_{car_id}{ext}')

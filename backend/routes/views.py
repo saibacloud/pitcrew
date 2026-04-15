@@ -5,9 +5,10 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from backend.auth import rate_limit_ai
 from backend.db import (
     get_car, get_view, get_views, create_view, soft_delete_view,
     get_photopin, get_photopins, create_photopin, update_photopin, soft_delete_photopin,
@@ -99,7 +100,7 @@ async def add_pin(view_id: int, body: PhotoPinBody):
     return await get_photopin(pin_id)
 
 
-@router.post('/pins/{pin_id}/research')
+@router.post('/pins/{pin_id}/research', dependencies=[Depends(rate_limit_ai)])
 async def research_pin(pin_id: int):
     """Send photo + pin context to Gemini and return research about that specific component."""
     pin = await get_photopin(pin_id)
@@ -115,7 +116,9 @@ async def research_pin(pin_id: int):
         raise HTTPException(404, 'Car not found')
 
     relative = view['file_path'].removeprefix('/static/')
-    filepath = os.path.join(STATIC_DIR, relative)
+    filepath = os.path.normpath(os.path.join(STATIC_DIR, relative))
+    if not filepath.startswith(os.path.normpath(STATIC_DIR)):
+        raise HTTPException(400, 'Invalid file path')
     if not os.path.exists(filepath):
         raise HTTPException(404, 'Image file not found on disk')
 
@@ -129,8 +132,8 @@ async def research_pin(pin_id: int):
         summary = await gemini.research_with_image(prompt_text, clean_bytes, mime_type)
         await update_photopin(pin_id, {'ai_summary': summary})
         return {'summary': summary}
-    except Exception as e:
-        raise HTTPException(502, f'AI research failed: {e}')
+    except Exception:
+        raise HTTPException(502, 'AI research failed — try again shortly')
 
 
 @router.delete('/pins/{pin_id}', status_code=204)

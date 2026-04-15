@@ -1,6 +1,6 @@
 // PitCrew — car view (info form, photo, section navigation)
 
-import { activeCar, setActiveCar, api, toast, carSpec } from './app.js';
+import { activeCar, setActiveCar, api, toast, carSpec, authHeaders } from './app.js';
 import { loadGarage } from './garage.js';
 import { loadJournal, resetJournal } from './journal.js';
 import { loadViews } from './pins.js';
@@ -114,7 +114,7 @@ async function handlePhotoUpload(event) {
     const formData = new FormData();
     formData.append('file', file);
     try {
-        const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'POST', body: formData });
+        const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'POST', body: formData, headers: authHeaders() });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
         activeCar.photo_url = data.photo_url;
@@ -125,7 +125,7 @@ async function handlePhotoUpload(event) {
 async function deleteCarPhoto() {
     if (!await pitcrewConfirm('Delete this photo?')) return;
     try {
-        const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'DELETE' });
+        const res = await fetch(`/api/cars/${activeCar.id}/photo`, { method: 'DELETE', headers: authHeaders() });
         if (!res.ok) throw new Error(await res.text());
         activeCar.photo_url = null;
         document.getElementById('car-photo-img').style.display = 'none';
