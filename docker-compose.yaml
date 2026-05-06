@@ -1,0 +1,19 @@
+services:
+  pitcrew:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PITCREW_DB_PATH=/app/data/pitcrew.db
+      - GENAI_API_KEY=${GENAI_API_KEY}
+      - API_TOKEN=${API_TOKEN}
+    volumes:
+      - pitcrew-data:/app/data
+      - pitcrew-uploads:/app/static/uploads
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+volumes:
+  pitcrew-data:
+  pitcrew-uploads:
