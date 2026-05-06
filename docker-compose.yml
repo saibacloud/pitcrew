@@ -1,34 +1,19 @@
-version: "3.8"
-
 services:
   pitcrew:
-    image: pitcrew:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - PITCREW_DB_PATH=/app/data/pitcrew.db
+      - GENAI_API_KEY=${GENAI_API_KEY}
+      - API_TOKEN=${API_TOKEN}
     volumes:
       - pitcrew-data:/app/data
       - pitcrew-uploads:/app/static/uploads
-    env_file: .env
-    environment:
-      - PITCREW_DB_PATH=/app/data/pitcrew.db
-    networks:
-      - traefik_public
-    deploy:
-      replicas: 1
-      placement:
-        constraints:
-          - node.hostname == rem
-      restart_policy:
-        condition: on-failure
-      labels:
-        - "traefik.enable=true"
-        - "traefik.http.routers.pitcrew.rule=Host(`pitcrew.jalex`)"
-        - "traefik.http.routers.pitcrew.entrypoints=websecure"
-        - "traefik.http.routers.pitcrew.tls=true"
-        - "traefik.http.services.pitcrew.loadbalancer.server.port=8000"
+    expose:
+      - "8000"
+    restart: unless-stopped
 
 volumes:
   pitcrew-data:
   pitcrew-uploads:
-
-networks:
-  traefik_public:
-    external: true
