@@ -557,6 +557,7 @@ main {
     gap: 10px;
     justify-content: flex-end;
     margin-top: 18px;
+    max-width: 720px;
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────── */
