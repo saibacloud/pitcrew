@@ -7,11 +7,14 @@ PitCrew is a web app, however works as a PWA so you can save it to your phone ho
 
 ## Getting started
 
-Set your Gemini API key in `.env`:
+Set your Gemini API key and an API token in `.env`:
 
 ```
 GENAI_API_KEY=your_key_here
+API_TOKEN=any_long_random_string
 ```
+
+`API_TOKEN` gates every `/api` route. The frontend prompts for it on first load and stores it in `localStorage`. If `API_TOKEN` is unset the backend runs in dev mode and accepts all requests (a warning is logged on every call).
 
 Then run it however suits your setup:
 
@@ -19,18 +22,17 @@ Then run it however suits your setup:
 # Local dev
 uvicorn backend.app:app --reload
 
-# Docker (you will need to change image to build in the compose file)
+# Docker Compose
 docker compose up --build
-
-# I personally deploy as a constrained node on my Docker Swarm
-docker build -t pitcrew:latest .
-docker stack deploy -c docker-compose.yml pitcrew
 ```
-> **Note:** SQLite doesn't support concurrent writes from separate processes, so this runs as a single replica only. TLDR; single node in docker, hence the constraint to a single host in the compose file.
+
+I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY` and `API_TOKEN` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
 The app serves on port 8000.
 
 ## How it works
+
+On first visit you'll get an unlock screen asking for the API token. Enter the value of `API_TOKEN` from your `.env` and it's cached in `localStorage` for future loads.
 
 The **Garage** is your landing page - a grid of your cars. Click one to open it up.
 
@@ -47,10 +49,11 @@ Once inside a car, you've got five sections to work with:
 | Layer | Tech |
 |-------|------|
 | Backend | FastAPI, async Python |
-| Database | SQLite via aiosqlite, WAL mode, soft deletes |
-| AI | Gemini 2.0 Flash (google-genai) |
+| Auth | Bearer token (`API_TOKEN`), per-IP rate limit on AI endpoints (10/min) |
+| Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
+| AI | `gemini-flash-latest` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |
-| Deploy | Docker, (I use) Traefik reverse proxy, single replica |
+| Deploy | Docker image built by Coolify from Forgejo, fronted by NPM |
 
 ## Project structure
 
@@ -58,6 +61,7 @@ Once inside a car, you've got five sections to work with:
 pitcrew/
 ├── backend/
 │   ├── app.py              - app entry point, mounts routers, serves static files
+│   ├── auth.py             - bearer token dependency and per-IP rate limiter
 │   ├── db.py               - database schema, migrations, all CRUD operations
 │   ├── routes/
 │   │   ├── cars.py         - car CRUD and photo upload
@@ -73,7 +77,7 @@ pitcrew/
 │   ├── manifest.json       - PWA manifest for home screen install
 │   ├── sw.js               - service worker for offline shell caching
 │   ├── js/
-│   │   ├── app.js          - boot sequence, shared state, API helper, utilities
+│   │   ├── app.js          - boot sequence, shared state, API helper, login overlay
 │   │   ├── garage.js       - car grid and add/remove car flow
 │   │   ├── car.js          - car view, sidebar navigation, info form, photo upload
 │   │   ├── journal.js      - research, notes, converse, and document search tabs
@@ -82,22 +86,22 @@ pitcrew/
 │   │   ├── manuals.js      - document grid, file uploads, AI document Q&A
 │   │   └── dialogs.js      - custom prompt and confirm modals
 │   ├── icons/              - PWA icons
-│   └── uploads/            - car photos, view photos, uploaded documents
+│   └── uploads/            - car photos, view photos, manuals, originals
 ├── Dockerfile
 ├── docker-compose.yml
 ├── PLAN.md                 - roadmap and architectural decisions
-└── .env                    - environment variables (hook ya Gemini key in here)
+└── .env                    - GENAI_API_KEY and API_TOKEN
 ```
 
 ## Data and storage
 
-The database is SQLite with WAL mode and foreign keys enabled. Every delete is a soft delete - nothing is permanently removed, records are filtered by `deleted_at IS NULL`. Enum fields (part status, category, journal type) are validated both in the schema and in application code.
+The database is SQLite with WAL mode and foreign keys enabled. Every delete is a soft delete - nothing is permanently removed, records are filtered by `deleted_at IS NULL`. Enum fields (part status, category, journal type, view angle) are validated both in the schema (CHECK constraints) and in application code before any write.
 
-Images are compressed on upload (max 2048px on the longest edge) and EXIF metadata is stripped before anything is sent to an external API.
+Images are compressed on upload (max 2048px on the longest edge) and EXIF metadata is stripped before anything is stored or sent to an external API.
 
 Two Docker volumes keep your data safe across rebuilds:
-- `pitcrew-data` - the SQLite database
-- `pitcrew-uploads` - photos and documents
+- `pitcrew-data` - the SQLite database (with its WAL/SHM siblings)
+- `pitcrew-uploads` - car photos, view photos, manuals, and originals
 
 
 
