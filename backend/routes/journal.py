@@ -27,11 +27,13 @@ class JournalEntryBody(BaseModel):
     type: str
     title: str
     body: Optional[str] = None
+    odometer: Optional[int] = None
 
 
 class JournalEntryPatch(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
+    odometer: Optional[int] = None
 
 
 class ResearchRequest(BaseModel):

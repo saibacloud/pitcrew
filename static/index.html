@@ -140,6 +140,7 @@
                         <button class="section-tab active" data-tab="research">Research</button>
                         <button class="section-tab" data-tab="converse">Converse</button>
                         <button class="section-tab" data-tab="note">Note</button>
+                        <button class="section-tab" data-tab="service">Service Log</button>
                         <button class="section-tab" data-tab="photo">Photos</button>
                         <button class="section-tab" data-tab="docsearch">Doc Searches</button>
                     </div>
@@ -174,6 +175,21 @@
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Note</th><th></th></tr></thead>
                             <tbody id="note-tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="section-tab-content" id="journal-service">
+                        <div class="journal-add-form journal-add-form--col">
+                            <input type="text" id="service-title-input" placeholder="Work done (e.g. Oil + filter change)" />
+                            <textarea id="service-notes-input" rows="2" placeholder="Details — parts used, torque values, next due..."></textarea>
+                            <div style="display:flex;gap:8px">
+                                <input type="number" id="service-odo-input" placeholder="Odometer (km)" min="0" style="flex:1" />
+                                <button class="btn btn-primary" id="service-add-btn">Log Service</button>
+                            </div>
+                        </div>
+                        <table class="parts-table">
+                            <thead><tr><th>Date</th><th>Odometer</th><th>Work</th><th></th></tr></thead>
+                            <tbody id="service-tbody"></tbody>
                         </table>
                     </div>
 
@@ -259,8 +275,8 @@
                     </div>
                     <div id="doc-ask-result" style="display:none;margin-bottom:20px">
                         <div class="research-answer" id="doc-ask-answer"></div>
-                        <div style="margin-top:10px;display:flex;gap:8px">
-                            <button class="btn btn-ghost" id="doc-ask-save-btn">Save to Journal</button>
+                        <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+                            <span style="font-size:11px;color:var(--muted)">Saved to Journal → Doc Searches</span>
                             <button class="btn btn-ghost" id="doc-ask-close-btn">Close</button>
                         </div>
                     </div>

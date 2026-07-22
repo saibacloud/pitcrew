@@ -2,7 +2,7 @@
 
 import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG, authHeaders } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
-import { lastDocAnswer, setLastDocAnswer } from './journal.js';
+import { addSavedEntry } from './journal.js';
 
 let manuals = [];
 let selectedManualIds = new Set();
@@ -120,20 +120,17 @@ async function askDocuments() {
     const resultEl = document.getElementById('doc-ask-result');
     const answerEl = document.getElementById('doc-ask-answer');
     resultEl.style.display = 'none';
-    setLastDocAnswer(null);
     try {
         const data = await api('POST', `/api/cars/${activeCar.id}/manuals/ask`, {
             question,
             manual_ids: [...selectedManualIds],
         });
-        setLastDocAnswer({ question, answer: data.answer, sources: data.sources || [] });
         answerEl.innerHTML = '<p>' + renderMarkdown(data.answer) + '</p>';
         if (data.sources?.length) {
             answerEl.innerHTML += `<p style="margin-top:10px;font-size:11px;color:var(--muted)">Sources: ${data.sources.map(s => escapeHtml(s)).join(', ')}</p>`;
         }
         resultEl.style.display = 'block';
-        document.getElementById('doc-ask-save-btn').disabled = false;
-        document.getElementById('doc-ask-save-btn').textContent = 'Save to Journal';
+        addSavedEntry(data.journal_entry);
         input.value = '';
     } catch (e) {
         toast(isAiBusy(e) ? AI_BUSY_MSG : 'AI search failed');
@@ -184,7 +181,6 @@ export function initManuals() {
     // Close AI response
     document.getElementById('doc-ask-close-btn').addEventListener('click', () => {
         document.getElementById('doc-ask-result').style.display = 'none';
-        setLastDocAnswer(null);
     });
 
     // Delegated clicks in manual section

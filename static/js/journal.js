@@ -31,6 +31,7 @@ export async function loadJournal(append = false) {
     renderJournalTab('research');
     renderJournalTab('converse');
     renderJournalTab('note');
+    renderJournalTab('service');
     renderJournalTab('docsearch');
     renderPhotoTab();
 }
@@ -39,12 +40,34 @@ function renderJournalTab(type) {
     const tbody = document.getElementById(`${type}-tbody`);
     if (!tbody) return;
     const entries = journalEntries.filter(e => e.type === type);
+    const cols = type === 'service' ? 4 : 3;
     if (!entries.length) {
-        tbody.innerHTML = `<tr><td colspan="3" class="parts-table-empty">No entries yet</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${cols}" class="parts-table-empty">No entries yet</td></tr>`;
         return;
     }
     tbody.innerHTML = entries.map(e => {
         const date = new Date(e.created_at + 'Z').toLocaleDateString();
+
+        if (type === 'service') {
+            const odo = e.odometer != null ? `${e.odometer.toLocaleString()} km` : '—';
+            const detailsBtn = e.body
+                ? `<button class="btn btn-ghost" data-action="toggle-answer" data-kind="service" data-id="${e.id}">Details</button>`
+                : '';
+            const detailsRow = e.body
+                ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
+                    <td colspan="4"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
+                   </tr>`
+                : '';
+            return `<tr>
+                <td class="journal-date">${date}</td>
+                <td class="journal-date">${odo}</td>
+                <td class="journal-text">${escapeHtml(e.title || '')}</td>
+                <td class="parts-table-actions">
+                    ${detailsBtn}
+                    <button class="btn btn-ghost" data-action="delete-journal" data-id="${e.id}">Delete</button>
+                </td>
+            </tr>${detailsRow}`;
+        }
 
         if (type === 'research' || type === 'docsearch') {
             const hasAnswer = !!e.body;
@@ -93,7 +116,12 @@ function toggleResearchAnswer(id) {
     const shown = row.style.display !== 'none';
     row.style.display = shown ? 'none' : 'table-row';
     const btn = row.previousElementSibling.querySelector('[data-action="toggle-answer"]');
-    if (btn) btn.textContent = shown ? 'View Answer' : 'Hide Answer';
+    if (btn) {
+        const isService = btn.dataset.kind === 'service';
+        btn.textContent = shown
+            ? (isService ? 'Details' : 'View Answer')
+            : (isService ? 'Hide Details' : 'Hide Answer');
+    }
 }
 
 async function runResearch() {
@@ -131,12 +159,35 @@ async function addJournalEntry(type) {
     } catch (e) { toast('Failed to save'); }
 }
 
+async function addServiceEntry() {
+    const titleEl = document.getElementById('service-title-input');
+    const odoEl = document.getElementById('service-odo-input');
+    const notesEl = document.getElementById('service-notes-input');
+    const title = titleEl?.value?.trim();
+    if (!title) { toast('Describe the work first'); return; }
+    const odometer = odoEl.value ? parseInt(odoEl.value, 10) : null;
+    try {
+        const entry = await api('POST', `/api/cars/${activeCar.id}/journal`, {
+            type: 'service',
+            title,
+            body: notesEl.value.trim() || null,
+            odometer,
+        });
+        journalEntries.unshift(entry);
+        titleEl.value = '';
+        odoEl.value = '';
+        notesEl.value = '';
+        renderJournalTab('service');
+        toast('Service logged');
+    } catch (e) { toast('Failed to save'); }
+}
+
 async function deleteJournalEntry(id) {
     if (!await pitcrewConfirm('Delete this journal entry?')) return;
     try {
         await api('DELETE', `/api/journal/${id}`);
         journalEntries = journalEntries.filter(e => e.id !== id);
-        ['research', 'converse', 'note', 'docsearch'].forEach(renderJournalTab);
+        ['research', 'converse', 'note', 'service', 'docsearch'].forEach(renderJournalTab);
         renderPhotoTab();
         toast('Entry deleted');
     } catch (e) { toast('Error deleting entry'); }
@@ -215,33 +266,12 @@ async function uploadJournalPhoto(file) {
     }
 }
 
-// ── Last doc answer (shared with manuals) ───────────────────────────────────
+// ── Shared with manuals: doc answers are auto-saved server-side ─────────────
 
-export let lastDocAnswer = null;
-
-export function setLastDocAnswer(val) {
-    lastDocAnswer = val;
-}
-
-export async function saveDocSearch() {
-    if (!lastDocAnswer) return;
-    const saveBtn = document.getElementById('doc-ask-save-btn');
-    saveBtn.disabled = true;
-    try {
-        const sources = lastDocAnswer.sources.length ? ` [${lastDocAnswer.sources.join(', ')}]` : '';
-        const entry = await api('POST', `/api/cars/${activeCar.id}/journal`, {
-            type: 'docsearch',
-            title: lastDocAnswer.question,
-            body: lastDocAnswer.answer + (sources ? `\n\nSources: ${lastDocAnswer.sources.join(', ')}` : ''),
-        });
-        journalEntries.unshift(entry);
-        renderJournalTab('docsearch');
-        saveBtn.textContent = 'Saved';
-        toast('Saved to Journal');
-    } catch (e) {
-        toast('Failed to save');
-        saveBtn.disabled = false;
-    }
+export function addSavedEntry(entry) {
+    if (!entry) return;
+    journalEntries.unshift(entry);
+    renderJournalTab(entry.type);
 }
 
 // ── Event delegation ────────────────────────────────────────────────────────
@@ -270,8 +300,8 @@ export function initJournal() {
     // Note add
     document.querySelector('#journal-note .btn-primary').addEventListener('click', () => addJournalEntry('note'));
 
-    // Save doc search
-    document.getElementById('doc-ask-save-btn').addEventListener('click', saveDocSearch);
+    // Service log add
+    document.getElementById('service-add-btn').addEventListener('click', addServiceEntry);
 
     // Journal tab switching
     document.querySelectorAll('#section-journal .section-tab').forEach(btn => {

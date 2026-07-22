@@ -13,6 +13,7 @@ from backend.auth import rate_limit_ai
 from backend.db import (
     get_car, get_manual, get_manuals,
     create_manual, soft_delete_manual,
+    create_journal, get_journal,
     VALID_MANUAL_CATEGORIES,
 )
 from backend.services import gemini
@@ -202,6 +203,14 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
 
     try:
         answer = await gemini.ask_documents(content_parts, car, body.question)
-        return {'answer': answer, 'sources': loaded}
     except Exception:
         raise HTTPException(502, 'AI document search failed — try again shortly')
+
+    # Persist the answer to the journal so it's never lost
+    entry_body = answer + (f'\n\nSources: {", ".join(loaded)}' if loaded else '')
+    entry_id = await create_journal(car_id, {
+        'type': 'docsearch',
+        'title': body.question,
+        'body': entry_body,
+    })
+    return {'answer': answer, 'sources': loaded, 'journal_entry': await get_journal(entry_id)}

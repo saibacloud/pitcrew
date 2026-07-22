@@ -2,6 +2,7 @@
 
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict
 
@@ -18,7 +19,7 @@ async def require_token(request: Request):
         log.warning("API_TOKEN not set — all requests allowed (dev mode)")
         return
     auth = request.headers.get('Authorization', '')
-    if not auth.startswith('Bearer ') or auth[7:] != API_TOKEN:
+    if not auth.startswith('Bearer ') or not secrets.compare_digest(auth[7:], API_TOKEN):
         raise HTTPException(401, 'Unauthorized')
 
 
@@ -48,5 +49,9 @@ ai_limiter = _RateLimiter(max_calls=10, window_seconds=60)
 
 async def rate_limit_ai(request: Request):
     """FastAPI dependency — rate-limits AI endpoints per client IP."""
-    client = request.client.host if request.client else 'unknown'
+    # Behind NPM the socket peer is always the proxy — key on the original
+    # client from X-Forwarded-For instead (first hop, set by the proxy)
+    fwd = request.headers.get('X-Forwarded-For', '')
+    client = fwd.split(',')[0].strip() if fwd else (
+        request.client.host if request.client else 'unknown')
     ai_limiter.check(client)

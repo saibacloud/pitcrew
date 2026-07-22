@@ -33,9 +33,10 @@ def car_description(car: dict) -> str:
 def build_research_prompt(car: dict, query: str) -> str:
     desc = car_description(car)
     options_line = f"\nOptions/package: {car['options']}" if car.get('options') else ''
+    notes_line = f"\nOwner's notes on this car: {car['notes']}" if car.get('notes') else ''
     return (
         f"You are an expert automotive mechanic and technical researcher.\n"
-        f"The car in question is: {desc}.{options_line}\n\n"
+        f"The car in question is: {desc}.{options_line}{notes_line}\n\n"
         f"Answer the following question concisely and practically. "
         f"Focus on specs, procedures, torque values, part numbers, and facts "
         f"specific to this car. Keep your answer under 400 words.\n\n"
@@ -56,6 +57,7 @@ ANGLE_LABELS = {
 
 def build_pin_research_prompt(car: dict, pin: dict, angle: str) -> str:
     desc = car_description(car)
+    notes_line = f"Owner's notes on this car: {car['notes']}\n" if car.get('notes') else ''
     angle_label = ANGLE_LABELS.get(angle, angle)
     label = pin.get('label', '')
     x_pct = pin.get('x_pct')
@@ -71,7 +73,7 @@ def build_pin_research_prompt(car: dict, pin: dict, angle: str) -> str:
 
     return (
         f"You are an expert automotive mechanic and technical researcher.\n"
-        f"The vehicle is: {desc}. This photo is the {angle_label}.\n\n"
+        f"The vehicle is: {desc}. This photo is the {angle_label}.\n{notes_line}\n"
         f"A pin has been placed on a specific component labelled: \"{label}\".\n"
         f"{position_hint}\n"
         f"{f'Additional context from the user: {pin_notes}' if pin_notes else ''}\n\n"
@@ -161,13 +163,16 @@ def make_thumbnail(raw_bytes: bytes, size: int = 400) -> bytes:
 # ── AI calls ─────────────────────────────────────────────────────────────────
 
 async def research(prompt: str, temperature: float = 0.3) -> str:
-    """Simple text-only Gemini call."""
+    """Text-only Gemini call with Google Search grounding."""
     t0 = time.monotonic()
     try:
         response = await client.aio.models.generate_content(
             model=MODEL,
             contents=prompt,
-            config=types.GenerateContentConfig(temperature=temperature),
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
         )
         elapsed = time.monotonic() - t0
         log.info("Gemini research completed in %.1fs", elapsed)
@@ -183,7 +188,7 @@ async def research_with_image(
     mime_type: str,
     temperature: float = 0.2,
 ) -> str:
-    """Gemini call with an image part."""
+    """Gemini call with an image part, grounded via Google Search."""
     t0 = time.monotonic()
     try:
         response = await client.aio.models.generate_content(
@@ -195,7 +200,10 @@ async def research_with_image(
                     types.Part.from_text(text=prompt_text),
                 ]
             ),
-            config=types.GenerateContentConfig(temperature=temperature),
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
         )
         elapsed = time.monotonic() - t0
         log.info("Gemini image research completed in %.1fs", elapsed)

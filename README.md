@@ -39,7 +39,7 @@ The **Garage** is your landing page - a grid of your cars. Click one to open it 
 Once inside a car, you've got five sections to work with:
 
 - **Car Info** - the basics: year, make, model, trim, engine, VIN, colour/paint code, notes, and a photo. This is the context that feeds every AI query.
-- **Journal** - your research log. Ask a question, Gemini answers it with your car's context baked in. You can also save freeform notes and document search results here. Everything is kept so you can come back to it.
+- **Journal** - your research log. Ask a question, Gemini answers it (grounded via Google Search) with your car's context baked in. Also holds freeform notes, a service log (date, odometer, work done, details), photos, and every document search answer - doc answers are saved automatically so nothing is lost. Car Info notes are fed into every AI prompt, so mileage/history/mods written there make answers more specific.
 - **Photo Pins** - upload photos from any angle (front, sides, rear, engine bay, underside, interior). Click anywhere on the photo to drop a pin, label the component, and ask AI to research that specific part. The answer sticks to the pin so you don't lose it.
 - **Cart** - a running parts list. Name, part number, price, supplier link, category, and status tracking from wishlist through to installed.
 - **Documents** - upload workshop manuals (PDF/DOCX), reference images, or any other files. Tick the ones you want, type a question, and the AI searches through them for the answer.
@@ -95,7 +95,7 @@ pitcrew/
 
 ## Data and storage
 
-The database is SQLite with WAL mode and foreign keys enabled. Every delete is a soft delete - nothing is permanently removed, records are filtered by `deleted_at IS NULL`. Enum fields (part status, category, journal type, view angle) are validated both in the schema (CHECK constraints) and in application code before any write.
+The database is SQLite with WAL mode and foreign keys enabled. Every delete is a soft delete - nothing is permanently removed, records are filtered by `deleted_at IS NULL`. Enum fields (part status, category, journal type, view angle) are validated both in the schema (CHECK constraints) and in application code before any write. Startup migrations handle legacy schemas (table rebuilds run with foreign keys off so `DROP TABLE` can't cascade into child rows).
 
 Images are compressed on upload (max 2048px on the longest edge) and EXIF metadata is stripped before anything is stored or sent to an external API.
 

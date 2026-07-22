@@ -21,6 +21,7 @@ class PartBody(BaseModel):
     price: Optional[float] = None
     quantity: Optional[int] = 1
     category: Optional[str] = 'Mechanical'
+    status: Optional[str] = 'wishlist'
     notes: Optional[str] = None
 
 

@@ -17,7 +17,7 @@ DB_PATH = os.environ.get(
 
 # ── Allowed enum values ──────────────────────────────────────────────────────
 
-VALID_JOURNAL_TYPES = {'research', 'note', 'converse', 'docsearch', 'photo'}
+VALID_JOURNAL_TYPES = {'research', 'note', 'converse', 'docsearch', 'photo', 'service'}
 VALID_PART_STATUSES = {'wishlist', 'ordered', 'received', 'installed'}
 VALID_PART_CATEGORIES = {'Mechanical', 'Electrical', 'Body', 'Interior', 'Consumables'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
@@ -55,10 +55,11 @@ CREATE TABLE IF NOT EXISTS journal (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
     type        TEXT NOT NULL DEFAULT 'note'
-                CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo')),
+                CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo', 'service')),
     title       TEXT NOT NULL,
     body        TEXT,
     photo_url   TEXT,
+    odometer    INTEGER,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -181,6 +182,7 @@ async def init_db():
         "ALTER TABLE photopins ADD COLUMN ai_summary TEXT",
         "ALTER TABLE photopins ADD COLUMN deleted_at TEXT",
         "ALTER TABLE views ADD COLUMN deleted_at TEXT",
+        "ALTER TABLE journal ADD COLUMN odometer INTEGER",
     ]
     for stmt in _migrations:
         try:
@@ -203,34 +205,82 @@ async def init_db():
     except Exception:
         pass
 
-    # Expand journal type CHECK to include 'photo'
+    # Legacy schema: cars.options was NOT NULL (renamed from nickname) — rebuild without it
+    async with db.execute("PRAGMA table_info(cars)") as cur:
+        car_cols = {row[1]: row for row in await cur.fetchall()}
+    if car_cols.get('options') and car_cols['options'][3]:  # notnull flag
+        # FK enforcement must be off during the rebuild — DROP TABLE cars would
+        # otherwise cascade-delete every child row (journal, parts, manuals, ...)
+        await db.commit()
+        await db.execute("PRAGMA foreign_keys=OFF")
+        await db.executescript("""
+            CREATE TABLE cars_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                year        INTEGER,
+                make        TEXT,
+                model       TEXT,
+                trim        TEXT,
+                options     TEXT,
+                engine      TEXT,
+                color       TEXT,
+                vin         TEXT,
+                notes       TEXT,
+                photo_url   TEXT,
+                deleted_at  TEXT,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO cars_new (id, year, make, model, trim, options, engine,
+                                  color, vin, notes, photo_url, deleted_at, created_at)
+                SELECT id, year, make, model, trim, options, engine,
+                       color, vin, notes, photo_url, deleted_at, created_at FROM cars;
+            DROP TABLE cars;
+            ALTER TABLE cars_new RENAME TO cars;
+        """)
+        await db.commit()
+        await db.execute("PRAGMA foreign_keys=ON")
+        log.info("Migrated cars table: dropped NOT NULL on options")
+
+    # Legacy parts default was 'needed' — not a valid status anymore
+    await db.execute("UPDATE parts SET status = 'wishlist' WHERE status = 'needed'")
+    await db.commit()
+
+    # Expand journal type CHECK to include 'photo' and 'service'
     try:
         await db.execute(
-            "INSERT INTO journal (car_id, type, title) VALUES (NULL, 'photo', '__check_test__')"
+            "INSERT INTO journal (car_id, type, title) VALUES (NULL, 'service', '__check_test__')"
         )
         await db.execute("DELETE FROM journal WHERE title = '__check_test__'")
         await db.commit()
     except Exception:
-        # CHECK constraint doesn't allow 'photo' — recreate table
+        # CHECK constraint too narrow — recreate table
         await db.executescript("""
             CREATE TABLE journal_new (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
                 type        TEXT NOT NULL DEFAULT 'note'
-                            CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo')),
+                            CHECK(type IN ('research', 'note', 'converse', 'docsearch', 'photo', 'service')),
                 title       TEXT NOT NULL,
                 body        TEXT,
                 photo_url   TEXT,
+                odometer    INTEGER,
                 deleted_at  TEXT,
                 created_at  TEXT DEFAULT (datetime('now'))
             );
-            INSERT INTO journal_new (id, car_id, type, title, body, photo_url, deleted_at, created_at)
-                SELECT id, car_id, type, title, body, photo_url, deleted_at, created_at FROM journal;
+            INSERT INTO journal_new (id, car_id, type, title, body, photo_url, odometer, deleted_at, created_at)
+                SELECT id, car_id, type, title, body, photo_url, odometer, deleted_at, created_at FROM journal;
             DROP TABLE journal;
             ALTER TABLE journal_new RENAME TO journal;
         """)
         await db.commit()
-        log.info("Migrated journal table to support 'photo' type")
+        log.info("Migrated journal table to expand type CHECK")
+
+    # One-time cleanup: soft-delete pins whose parent view was hard-deleted
+    # before views had soft deletes (their photos are gone from disk)
+    await db.execute(
+        "UPDATE photopins SET deleted_at = datetime('now') "
+        "WHERE deleted_at IS NULL AND view_id NOT IN (SELECT id FROM views)"
+    )
+    await db.commit()
 
     log.info("Database initialised, migrations applied")
 
@@ -316,7 +366,7 @@ async def update_car_photo(car_id: int, photo_url: Optional[str]) -> int:
 
 # ── Journal ──────────────────────────────────────────────────────────────────
 
-_JOURNAL_FIELDS = ('type', 'title', 'body', 'photo_url')
+_JOURNAL_FIELDS = ('type', 'title', 'body', 'photo_url', 'odometer')
 _LIVE_JOURNAL = "deleted_at IS NULL"
 
 
@@ -345,8 +395,9 @@ async def create_journal(car_id: int, data: dict) -> int:
     if j_type not in VALID_JOURNAL_TYPES:
         raise ValueError(f"Invalid journal type: {j_type}")
     return await _insert(
-        "INSERT INTO journal (car_id, type, title, body, photo_url) VALUES (?, ?, ?, ?, ?)",
-        (car_id, j_type, data.get('title', ''), data.get('body'), data.get('photo_url'))
+        "INSERT INTO journal (car_id, type, title, body, photo_url, odometer) VALUES (?, ?, ?, ?, ?, ?)",
+        (car_id, j_type, data.get('title', ''), data.get('body'), data.get('photo_url'),
+         data.get('odometer'))
     )
 
 
