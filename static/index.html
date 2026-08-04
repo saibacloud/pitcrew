@@ -16,10 +16,31 @@
 
 <body>
 
+    <!-- LOGIN VIEW -->
+    <div id="view-login" class="view">
+        <main class="login-main">
+            <form class="login-card" id="login-form" novalidate>
+                <span class="logo login-logo">Pit<em>Crew</em></span>
+                <p class="login-sub">Enter your access code to open the garage</p>
+
+                <div class="form-group">
+                    <label for="login-code">Access code</label>
+                    <input type="password" id="login-code" name="code" autocomplete="current-password"
+                        placeholder="••••••••" required />
+                </div>
+
+                <p class="login-error" id="login-error" role="alert" hidden></p>
+
+                <button type="submit" class="btn btn-primary login-submit" id="login-submit">Unlock</button>
+            </form>
+        </main>
+    </div>
+
     <!-- GARAGE VIEW -->
-    <div id="view-garage" class="view active">
+    <div id="view-garage" class="view">
         <header class="app-header">
             <span class="logo">Pit<em>Crew</em></span>
+            <button class="lock-btn" id="lock-btn" title="Lock PitCrew">Lock</button>
         </header>
         <main>
             <div class="section-heading">Your Garage <span id="car-count"></span></div>

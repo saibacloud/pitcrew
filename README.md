@@ -7,14 +7,38 @@ PitCrew is a web app, however works as a PWA so you can save it to your phone ho
 
 ## Getting started
 
-Set your Gemini API key and an API token in `.env`:
+Copy `.env.example` to `.env` and fill in three values.
+
+Your Gemini API key:
 
 ```
 GENAI_API_KEY=your_key_here
-API_TOKEN=any_long_random_string
 ```
 
-`API_TOKEN` gates every `/api` route. The frontend prompts for it on first load and stores it in `localStorage`. If `API_TOKEN` is unset the backend runs in dev mode and accepts all requests (a warning is logged on every call).
+An Argon2id hash of the access code you'll unlock the app with. The prompt keeps the code itself out of your shell history — only the hash is ever stored:
+
+```sh
+python -m backend.auth
+# Access code: ****
+# Confirm: ****
+# $argon2id$v=19$m=65536,t=3,p=4$...
+```
+
+```
+PITCREW_CODE_HASH=$argon2id$v=19$m=65536,t=3,p=4$...
+```
+
+And an HMAC key for signing session cookies:
+
+```sh
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+```
+PITCREW_SECRET_KEY=generated_value_here
+```
+
+If `PITCREW_CODE_HASH` is unset the app fails closed — nobody can log in. If `PITCREW_SECRET_KEY` is unset a random key is generated at boot, which works but logs everyone out on every restart.
 
 Then run it however suits your setup:
 
@@ -26,13 +50,13 @@ uvicorn backend.app:app --reload
 docker compose up --build
 ```
 
-I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY` and `API_TOKEN` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
+I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY`, `PITCREW_CODE_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
-The app serves on port 8000.
+The app serves on port 8000. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
 
 ## How it works
 
-On first visit you'll get an unlock screen asking for the API token. Enter the value of `API_TOKEN` from your `.env` and it's cached in `localStorage` for future loads.
+On first visit you'll get an unlock screen asking for your access code. It's verified against the Argon2id hash in `PITCREW_CODE_HASH` and exchanged for an HttpOnly, `Secure`, `SameSite=strict` session cookie that lasts 12 hours — the code itself is never stored in the browser. Login is rate limited to 8 attempts per 15 minutes per IP. The **Lock** button in the garage header ends the session.
 
 The **Garage** is your landing page - a grid of your cars. Click one to open it up.
 
@@ -49,7 +73,7 @@ Once inside a car, you've got five sections to work with:
 | Layer | Tech |
 |-------|------|
 | Backend | FastAPI, async Python |
-| Auth | Bearer token (`API_TOKEN`), per-IP rate limit on AI endpoints (10/min) |
+| Auth | Argon2id access code, signed session cookie (itsdangerous), per-IP rate limits on login (8/15min) and AI endpoints (10/min) |
 | Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
 | AI | `gemini-flash-latest` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |
@@ -61,9 +85,10 @@ Once inside a car, you've got five sections to work with:
 pitcrew/
 ├── backend/
 │   ├── app.py              - app entry point, mounts routers, serves static files
-│   ├── auth.py             - bearer token dependency and per-IP rate limiter
+│   ├── auth.py             - access-code hashing, session cookies, per-IP rate limiters
 │   ├── db.py               - database schema, migrations, all CRUD operations
 │   ├── routes/
+│   │   ├── auth.py         - login, logout, session probe
 │   │   ├── cars.py         - car CRUD and photo upload
 │   │   ├── journal.py      - journal entries and AI research queries
 │   │   ├── views.py        - photo views, pins, and pin-level AI research
@@ -77,7 +102,8 @@ pitcrew/
 │   ├── manifest.json       - PWA manifest for home screen install
 │   ├── sw.js               - service worker for offline shell caching
 │   ├── js/
-│   │   ├── app.js          - boot sequence, shared state, API helper, login overlay
+│   │   ├── app.js          - boot sequence, shared state, API helpers, session gate
+│   │   ├── login.js        - login view, access-code submission
 │   │   ├── garage.js       - car grid and add/remove car flow
 │   │   ├── car.js          - car view, sidebar navigation, info form, photo upload
 │   │   ├── journal.js      - research, notes, converse, and document search tabs
@@ -90,7 +116,7 @@ pitcrew/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── PLAN.md                 - roadmap and architectural decisions
-└── .env                    - GENAI_API_KEY and API_TOKEN
+└── .env                    - GENAI_API_KEY, PITCREW_CODE_HASH, PITCREW_SECRET_KEY
 ```
 
 ## Data and storage

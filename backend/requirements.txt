@@ -1,6 +1,8 @@
 fastapi
 uvicorn[standard]
 aiosqlite
+argon2-cffi
+itsdangerous
 python-multipart
 google-genai
 python-dotenv

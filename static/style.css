@@ -1736,3 +1736,78 @@ main {
     margin-bottom: 16px;
     line-height: 1.5;
 }
+/* ── Login ───────────────────────────────────────────────────────────────── */
+
+.login-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.login-card {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 28px;
+    /* Nudged up from dead centre — reads better and keeps the field clear of
+       the mobile keyboard when it opens */
+    margin-bottom: 8vh;
+}
+
+.login-logo {
+    font-size: 22px;
+}
+
+.login-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: -8px;
+}
+
+.login-error {
+    font-size: 13px;
+    color: #e63946;
+}
+
+.login-error[hidden] {
+    display: none;
+}
+
+.login-submit {
+    width: 100%;
+    padding: 11px 18px;
+}
+
+.login-submit:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ── Lock button ─────────────────────────────────────────────────────────── */
+
+.lock-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 12px;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.lock-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}

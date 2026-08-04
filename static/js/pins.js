@@ -1,6 +1,6 @@
 // PitCrew — photo pins (views, pin overlay, AI research)
 
-import { activeCar, api, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG, authHeaders } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewPrompt, pitcrewConfirm } from './dialogs.js';
 
 let carViews = {};      // { angle: [view, ...] }
@@ -176,9 +176,7 @@ async function handleViewUpload(angle, event) {
         const formData = new FormData();
         formData.append('file', file);
         try {
-            const res = await fetch(`/api/cars/${activeCar.id}/views/${angle}`, { method: 'POST', body: formData, headers: authHeaders() });
-            if (!res.ok) throw new Error(await res.text());
-            const newView = await res.json();
+            const newView = await apiUpload('POST', `/api/cars/${activeCar.id}/views/${angle}`, formData);
             if (!carViews[angle]) carViews[angle] = [];
             carViews[angle].push(newView);
             toast('Photo saved');

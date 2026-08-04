@@ -16,8 +16,9 @@ from dotenv import load_dotenv
 # Resolve .env relative to this file so it works regardless of cwd
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-from backend.auth import require_token
+from backend.auth import require_session
 from backend.db import init_db, close_db
+from backend.routes.auth import router as auth_router
 from backend.routes.cars import router as cars_router
 from backend.routes.journal import router as journal_router
 from backend.routes.views import router as views_router
@@ -53,8 +54,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# All /api routes require bearer token
-api_deps = [Depends(require_token)]
+# Login/logout must stay reachable without a session
+app.include_router(auth_router)
+
+# Every other /api route requires a valid session cookie
+api_deps = [Depends(require_session)]
 app.include_router(cars_router, dependencies=api_deps)
 app.include_router(journal_router, dependencies=api_deps)
 app.include_router(views_router, dependencies=api_deps)
@@ -77,7 +81,7 @@ class ChatRequest(BaseModel):
     car_id: Optional[int] = None
 
 
-@app.post('/api/chat', dependencies=[Depends(require_token)])
+@app.post('/api/chat', dependencies=[Depends(require_session)])
 async def chat(req: ChatRequest):
     return {
         'response': f'(stub) you said: {req.message}',

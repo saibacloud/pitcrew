@@ -8,6 +8,7 @@ import { initPins } from './pins.js';
 import { initCart } from './cart.js';
 import { initManuals } from './manuals.js';
 import { initDialogs } from './dialogs.js';
+import { initLogin, showLogin } from './login.js';
 
 // ── Shared state ────────────────────────────────────────────────────────────
 
@@ -17,28 +18,25 @@ export function setActiveCar(car) {
     activeCar = car;
 }
 
-// ── Auth ────────────────────────────────────────────────────────────────────
-
-export function getToken() { return localStorage.getItem('pitcrew_token') || ''; }
-export function setToken(t) { localStorage.setItem('pitcrew_token', t); }
-
-export function authHeaders(extra = {}) {
-    const t = getToken();
-    return t ? { Authorization: `Bearer ${t}`, ...extra } : { ...extra };
-}
-
-// ── API helper ──────────────────────────────────────────────────────────────
+// ── API helpers ─────────────────────────────────────────────────────────────
+// Auth rides on the HttpOnly session cookie, so requests just need to carry
+// credentials — there is no token for the frontend to hold.
 
 export async function api(method, path, body) {
-    const headers = body
-        ? authHeaders({ 'Content-Type': 'application/json' })
-        : authHeaders();
-    const opts = {
+    return request(path, {
         method,
-        headers,
+        headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,
-    };
-    const res = await fetch(path, opts);
+    });
+}
+
+export async function apiUpload(method, path, formData) {
+    // No Content-Type — the browser sets the multipart boundary itself
+    return request(path, { method, body: formData });
+}
+
+async function request(path, opts) {
+    const res = await fetch(path, { credentials: 'same-origin', ...opts });
     if (res.status === 401) { showLogin(); throw new Error('Unauthorized'); }
     if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
     if (res.status === 204) return null;
@@ -94,35 +92,22 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/static/sw.js').catch(() => {});
 }
 
-// ── Login gate ──────────────────────────────────────────────────────────────
+// ── Session gate ────────────────────────────────────────────────────────────
 
-function showLogin() {
-    if (document.getElementById('login-overlay')) return;
-    const overlay = document.createElement('div');
-    overlay.id = 'login-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999';
-    overlay.innerHTML = `
-        <form id="login-form" style="background:var(--bg-card,#1e1e2e);padding:2rem;border-radius:8px;min-width:300px;text-align:center">
-            <h2 style="margin:0 0 1rem">PitCrew</h2>
-            <input id="login-token" type="password" placeholder="API Token" style="width:100%;padding:.5rem;margin-bottom:1rem;box-sizing:border-box">
-            <button type="submit" style="width:100%;padding:.5rem">Unlock</button>
-        </form>`;
-    document.body.appendChild(overlay);
-    const form = document.getElementById('login-form');
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const token = document.getElementById('login-token').value.trim();
-        if (!token) return;
-        setToken(token);
-        try {
-            await api('GET', '/api/cars');
-            overlay.remove();
-            loadGarage();
-        } catch {
-            toast('Invalid token');
-            setToken('');
-        }
-    });
+function enterApp() {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-garage').classList.add('active');
+    loadGarage();
+}
+
+async function lock() {
+    try {
+        await api('POST', '/api/auth/logout');
+    } catch {
+        // Clearing the cookie is best-effort — either way the UI locks
+    }
+    setActiveCar(null);
+    showLogin();
 }
 
 // ── Boot ────────────────────────────────────────────────────────────────────
@@ -135,10 +120,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     initPins();
     initCart();
     initManuals();
-    // Check auth before loading data
+    initLogin(enterApp);
+    document.getElementById('lock-btn').addEventListener('click', lock);
+
+    // No view is active in the markup — the session probe picks the first one
+    // so an authenticated reload never flashes the login screen
     try {
-        await api('GET', '/api/cars');
-        loadGarage();
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (!res.ok) throw new Error('Unauthorized');
+        enterApp();
     } catch {
         showLogin();
     }

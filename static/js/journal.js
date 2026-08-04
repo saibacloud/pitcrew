@@ -1,6 +1,6 @@
 // PitCrew — journal (research, notes, converse, doc search, photos)
 
-import { activeCar, api, authHeaders, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let journalEntries = [];
@@ -246,14 +246,7 @@ async function uploadJournalPhoto(file) {
     btn.disabled = true;
     btn.textContent = 'Uploading…';
     try {
-        const res = await fetch(`/api/cars/${activeCar.id}/journal/photo`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: fd,
-        });
-        if (res.status === 401) { toast('Unauthorized'); return; }
-        if (!res.ok) throw new Error(await res.text());
-        const entry = await res.json();
+        const entry = await apiUpload('POST', `/api/cars/${activeCar.id}/journal/photo`, fd);
         journalEntries.unshift(entry);
         renderPhotoTab();
         toast('Photo saved');

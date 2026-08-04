@@ -1,0 +1,18 @@
+# Secrets — env comes from Coolify / compose, never baked into the image
+.env
+.env.local
+.helper
+
+# Local dev cruft
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+
+# Local data — the container uses mounted volumes instead
+*.db
+*.db-wal
+*.db-shm
+static/uploads/

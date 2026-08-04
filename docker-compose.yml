@@ -6,7 +6,8 @@ services:
     environment:
       - PITCREW_DB_PATH=/app/data/pitcrew.db
       - GENAI_API_KEY=${GENAI_API_KEY}
-      - API_TOKEN=${API_TOKEN}
+      - PITCREW_CODE_HASH=${PITCREW_CODE_HASH}
+      - PITCREW_SECRET_KEY=${PITCREW_SECRET_KEY}
     volumes:
       - pitcrew-data:/app/data
       - pitcrew-uploads:/app/static/uploads
