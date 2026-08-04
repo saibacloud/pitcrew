@@ -2,14 +2,19 @@
 
 AI car workshop assistant. FastAPI + SQLite + Gemini + vanilla JS. Deployed to Coolify.
 
-## Location gotchas
+## Location
 
-The project now lives at `old_nemesis/pitcrew`. The move broke the venv's console-script shebangs:
+Lives at `Documents/Code/pitcrew` — back where it started. It spent a while nested
+inside `old_nemesis/`, which is what broke the venv's console-script shebangs; moving
+it back repaired them, since `.venv` was always built against this path. Both forms
+work now:
 
 ```
-# use this
-.venv/bin/python -m uvicorn ...
+.venv/bin/uvicorn backend.app:app --reload
+.venv/bin/python -m uvicorn backend.app:app --reload
 ```
+
+`old_nemesis/` (the retired dorking engine) is now at `Documents/Code/archive/old_nemesis`.
 
 The local `.env` `GENAI_API_KEY` is **invalid**. The live key is in Coolify.
 
@@ -42,7 +47,7 @@ Replaced the bearer-token gate with traxd's session model:
 - Fails closed - no `CODE_HASH` means nobody logs in. There is no dev-mode
   bypass any more.
 - Generate the hash with `.venv/bin/python -m backend.auth` (prompts, so the
-  code stays out of shell history).
+  code stays out of shell history). Must run from the project root.
 - `API_TOKEN` is gone. **Coolify env must be updated before the next deploy**
   or the app is unreachable.
 - Login rate limited 8/15min per IP, keyed on X-Forwarded-For like the AI limiter.
