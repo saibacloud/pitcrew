@@ -1766,12 +1766,6 @@ main {
     font-size: 22px;
 }
 
-.login-sub {
-    font-size: 13px;
-    color: var(--muted);
-    margin-top: -8px;
-}
-
 .login-error {
     font-size: 13px;
     color: #e63946;
