@@ -56,3 +56,9 @@ Thumbs.db
 
 # Docker export
 *.tar.gz
+
+# Environment files. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+!.env.*.example
