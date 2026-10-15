@@ -55,7 +55,7 @@ function renderJournalTab(type) {
                 : '';
             const detailsRow = e.body
                 ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                    <td colspan="4"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
+                    <td colspan="4"><div class="research-answer">${renderMarkdown(e.body)}</div></td>
                    </tr>`
                 : '';
             return `<tr>
@@ -76,7 +76,7 @@ function renderJournalTab(type) {
                 : `<button class="btn btn-ghost" disabled title="No answer stored">No Answer</button>`;
             const answerRow = hasAnswer
                 ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                    <td colspan="3"><div class="research-answer"><p>${renderMarkdown(e.body)}</p>${searchSuggestionsHtml(e.search_suggestions)}</div></td>
+                    <td colspan="3"><div class="research-answer">${renderMarkdown(e.body)}${searchSuggestionsHtml(e.search_suggestions)}</div></td>
                    </tr>`
                 : '';
             return `<tr>

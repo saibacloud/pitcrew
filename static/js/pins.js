@@ -72,7 +72,7 @@ async function renderViewTab(angle) {
                         ? `<button class="btn btn-ghost" data-action="toggle-pin-answer" data-pin-id="${pin.id}">View Answer</button>`
                         : '';
                     const answerDiv = summary
-                        ? `<div class="pin-research-result" id="pin-answer-${pin.id}" style="display:none"><p>${renderMarkdown(summary)}</p>${searchSuggestionsHtml(suggestions)}</div>`
+                        ? `<div class="pin-research-result" id="pin-answer-${pin.id}" style="display:none">${renderMarkdown(summary)}${searchSuggestionsHtml(suggestions)}</div>`
                         : '';
                     const loadingDiv = isLoading
                         ? `<div class="pin-research-result pin-research-loading">${aiLoadingHtml('Researching')}</div>`

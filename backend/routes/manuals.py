@@ -8,7 +8,7 @@ import re
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from PIL import Image
 from pydantic import BaseModel
 from google.genai import types
@@ -21,6 +21,7 @@ from backend.db import (
     VALID_MANUAL_CATEGORIES,
 )
 from backend.services import gemini
+from backend.uploads import save_upload
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +59,18 @@ def _extract_sidecar(filepath: str) -> None:
         text = page.extract_text() or ''
         if text.strip():
             pages.append(f'[Page {i + 1}]\n{text}')
-    with open(filepath + '.txt', 'w', encoding='utf-8') as f:
+    # Written whole then renamed, so a concurrent reader never sees a partial sidecar
+    tmp = filepath + '.txt.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
         f.write('\n\n'.join(pages))
+    os.replace(tmp, filepath + '.txt')
+
+
+def _extract_sidecar_logged(filepath: str) -> None:
+    try:
+        _extract_sidecar(filepath)
+    except Exception:
+        log.exception("Text extraction failed for %s", filepath)
 
 
 def _sidecar_pages(filepath: str) -> dict[int, str]:
@@ -134,7 +145,9 @@ async def list_manuals(car_id: int):
 
 
 @router.post('/cars/{car_id}/manuals', status_code=201)
-async def upload_manual(car_id: int, file: UploadFile = File(...), category: str = 'manual'):
+async def upload_manual(
+    car_id: int, background: BackgroundTasks, file: UploadFile = File(...), category: str = 'manual',
+):
     car = await get_car(car_id)
     if not car:
         raise HTTPException(404, 'Car not found')
@@ -146,18 +159,20 @@ async def upload_manual(car_id: int, file: UploadFile = File(...), category: str
     if allowed is not None and ext not in allowed:
         raise HTTPException(400, f'Unsupported file type for {category}. Allowed: {", ".join(sorted(allowed))}')
 
-    contents = await file.read()
-    if len(contents) > MAX_MANUAL_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_MANUAL_UPLOAD // (1024*1024)}MB)')
-
     safe_name = Path(file.filename).stem[:60] if file.filename else 'file'
     filename = f"car_{car_id}_{int(time.time())}_{safe_name}{ext}"
     dest = os.path.join(MANUALS_DIR, filename)
-    with open(dest, 'wb') as f:
-        f.write(contents)
+    await save_upload(file, dest, MAX_MANUAL_UPLOAD)
 
+    # Opening the PDF is quick even for large manuals; extracting its text is not, so that
+    # runs after the response and questions extract on demand if it hasn't finished
     if ext == '.pdf':
-        await asyncio.to_thread(_extract_sidecar, dest)
+        try:
+            await asyncio.to_thread(_pdf_page_count, dest)
+        except Exception:
+            os.remove(dest)
+            raise HTTPException(400, 'Could not open this PDF - it may be damaged or password protected')
+        background.add_task(_extract_sidecar_logged, dest)
 
     file_path = f'/static/uploads/manuals/{filename}'
     title = Path(file.filename).stem if file.filename else filename

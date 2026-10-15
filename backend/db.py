@@ -42,15 +42,6 @@ CREATE TABLE IF NOT EXISTS cars (
     created_at  TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS messages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
-    role        TEXT NOT NULL,
-    content     TEXT NOT NULL,
-    citations   TEXT,
-    created_at  TEXT DEFAULT (datetime('now'))
-);
-
 CREATE TABLE IF NOT EXISTS journal (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
@@ -63,13 +54,6 @@ CREATE TABLE IF NOT EXISTS journal (
     search_suggestions TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS notes (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
-    content     TEXT NOT NULL,
-    updated_at  TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS views (
@@ -114,16 +98,6 @@ CREATE TABLE IF NOT EXISTS parts (
     notes       TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS searches (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    car_id          INTEGER REFERENCES cars(id) ON DELETE CASCADE,
-    pin_id          INTEGER REFERENCES photopins(id) ON DELETE SET NULL,
-    query_sent      TEXT NOT NULL,
-    result_summary  TEXT,
-    raw_response    TEXT,
-    created_at      TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS manuals (
@@ -288,6 +262,23 @@ async def init_db():
         "WHERE deleted_at IS NULL AND view_id NOT IN (SELECT id FROM views)"
     )
     await db.commit()
+
+    # Tables from early schemas that nothing reads or writes. Dropped only when
+    # empty, so any rows that do exist are left for a manual look.
+    for table in ('messages', 'notes', 'searches'):
+        async with db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (table,)
+        ) as cur:
+            if not await cur.fetchone():
+                continue
+        async with db.execute(f"SELECT COUNT(*) FROM {table}") as cur:
+            (rows,) = await cur.fetchone()
+        if rows:
+            log.warning("Unused table %s has %d rows; leaving it in place", table, rows)
+        else:
+            await db.execute(f"DROP TABLE {table}")
+            await db.commit()
+            log.info("Dropped unused empty table %s", table)
 
     log.info("Database initialised, migrations applied")
 

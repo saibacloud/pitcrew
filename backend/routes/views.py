@@ -15,6 +15,7 @@ from backend.db import (
     VALID_VIEW_ANGLES,
 )
 from backend.services import gemini
+from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['views', 'pins'])
 
@@ -50,9 +51,7 @@ async def upload_view(car_id: int, angle: str, file: UploadFile = File(...)):
     if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
         raise HTTPException(400, 'Unsupported file type')
 
-    contents = await file.read()
-    if len(contents) > MAX_VIEW_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_VIEW_UPLOAD // (1024*1024)}MB)')
+    contents = await read_upload(file, MAX_VIEW_UPLOAD)
 
     # Compress for storage
     contents = gemini.compress_for_storage(contents)

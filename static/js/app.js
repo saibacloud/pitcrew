@@ -94,15 +94,55 @@ export function searchSuggestionsHtml(html) {
         + `sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc="${attr}"></iframe>`;
 }
 
+// Line-based subset of Markdown used in AI answers: paragraphs, # headings,
+// - and 1. lists, **bold**, *italic*, and https links. Input is HTML-escaped first.
 export function renderMarkdown(str) {
-    return escapeHtml(str)
+    const inline = text => escapeHtml(text)
         .replace(/\[([^\]]+)\]\((https:\/\/[^\s)"]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')
-        .replace(/\n{2,}/g, '</p><p>')
-        .replace(/\n/g, '<br>')
-        .replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+        .replace(/\*(\S(?:.*?\S)?)\*/g, '<em>$1</em>');
+
+    const out = [];
+    let para = [];
+    let list = null;
+    const flushPara = () => {
+        if (para.length) out.push(`<p>${para.join('<br>')}</p>`);
+        para = [];
+    };
+    const closeList = () => {
+        if (list) out.push(`</${list}>`);
+        list = null;
+    };
+    const listItem = (type, text, start) => {
+        flushPara();
+        if (list !== type) {
+            closeList();
+            // Numbered items split by blank lines keep counting from their own number
+            out.push(type === 'ol' && start !== 1 ? `<ol start="${start}">` : `<${type}>`);
+            list = type;
+        }
+        out.push(`<li>${inline(text)}</li>`);
+    };
+
+    for (const line of String(str ?? '').split('\n')) {
+        let m;
+        if ((m = line.match(/^\s*[-*] (.+)/))) listItem('ul', m[1]);
+        else if ((m = line.match(/^\s*(\d+)[.)] (.+)/))) listItem('ol', m[2], parseInt(m[1], 10));
+        else if ((m = line.match(/^#{1,6} (.+)/))) {
+            flushPara();
+            closeList();
+            out.push(`<p><strong>${inline(m[1])}</strong></p>`);
+        } else if (!line.trim()) {
+            flushPara();
+            closeList();
+        } else {
+            closeList();
+            para.push(inline(line));
+        }
+    }
+    flushPara();
+    closeList();
+    return out.join('');
 }
 
 // ── Service worker ──────────────────────────────────────────────────────────

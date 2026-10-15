@@ -1,6 +1,6 @@
 // PitCrew — manuals / documents
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 import { addSavedEntry } from './journal.js';
 
@@ -122,7 +122,7 @@ async function askDocuments() {
             question,
             manual_ids: [...selectedManualIds],
         });
-        answerEl.innerHTML = '<p>' + renderMarkdown(data.answer) + '</p>';
+        answerEl.innerHTML = renderMarkdown(data.answer);
         if (data.sources?.length) {
             answerEl.innerHTML += `<p style="margin-top:10px;font-size:11px;color:var(--muted)">Sources: ${data.sources.map(s => escapeHtml(s)).join(', ')}</p>`;
         }
