@@ -226,11 +226,20 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
                                                  f'read whole. Split it into parts under {PDF_PAGE_BUDGET} pages.')
                     picked = _pick_pages(pages, body.question)
                     subset = await asyncio.to_thread(_pdf_subset, filepath, picked)
-                    content_parts.append(types.Part.from_text(
-                        text=f'[Document: {title}, selected pages only. In order, the pages of this PDF are '
-                             f'original pages {", ".join(map(str, picked))}. Cite the original page numbers.]'
-                    ))
-                    content_parts.append(await gemini.pdf_bytes_part(subset))
+                    # pypdf can carry shared images/fonts into a subset; past Gemini's
+                    # PDF limit the picked pages go as extracted text instead
+                    if len(subset) <= PDF_MAX_BYTES:
+                        content_parts.append(types.Part.from_text(
+                            text=f'[Document: {title}, selected pages only. In order, the pages of this PDF are '
+                                 f'original pages {", ".join(map(str, picked))}. Cite the original page numbers.]'
+                        ))
+                        content_parts.append(await gemini.pdf_bytes_part(subset))
+                    else:
+                        log.info("Subset of %s is %d bytes; sending page text", title, len(subset))
+                        content_parts.append(types.Part.from_text(
+                            text=f'[Document: {title}, extracted text of selected pages]\n\n'
+                                 + '\n\n'.join(f'[Page {n}]\n{pages[n]}' for n in picked if n in pages)
+                        ))
                     page_budget = max(0, page_budget - len(picked))
             elif ext in GEMINI_IMAGE_MIME or ext in RASTER_TO_PNG:
                 with open(filepath, 'rb') as f:
