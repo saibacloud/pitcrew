@@ -64,5 +64,5 @@ session), only its markup/CSS/JS by inspection.
 ## Known state
 
 - The Converse tab is still a stub (`/api/chat`). Deliberately deferred.
-- Logout only clears the cookie client-side. A stolen cookie stays valid until
-  it expires, since signed sessions carry no server-side revocation list.
+- Login is a 6-12 digit PIN (`PITCREW_PIN_HASH`, replacing `PITCREW_CODE_HASH`).
+  Sessions live in the `sessions` table and logout revokes them server-side.

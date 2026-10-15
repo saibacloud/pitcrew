@@ -1,24 +1,29 @@
-# Auth routes — access-code login, logout, session probe
+# Auth routes — PIN login, logout, session probe
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from backend import auth
+from backend.db import create_session, prune_sessions, revoke_session
 
 router = APIRouter(prefix='/api/auth')
 
 
 class LoginRequest(BaseModel):
-    # Bounded so an oversized body never reaches the Argon2 verifier
-    code: str = Field(min_length=1, max_length=256)
+    # Bounded and digits-only so nothing else reaches the Argon2 verifier
+    pin: str = Field(pattern=auth.PIN_PATTERN)
 
 
 @router.post('/login', dependencies=[Depends(auth.rate_limit_login)])
 async def login(req: LoginRequest, resp: Response):
-    if not auth.verify_code(req.code):
-        raise HTTPException(401, 'Incorrect code')
+    if not auth.verify_pin(req.pin):
+        auth.login_failures.record(auth.GLOBAL_KEY)
+        raise HTTPException(401, 'Incorrect PIN')
+    cookie, id_hash = auth.new_session()
+    await prune_sessions()
+    await create_session(id_hash, auth.SESSION_TTL)
     resp.set_cookie(
-        auth.COOKIE_NAME, auth.make_session_cookie(),
+        auth.COOKIE_NAME, cookie,
         httponly=True, secure=True, samesite='strict',
         max_age=auth.SESSION_TTL, path='/',
     )
@@ -26,7 +31,10 @@ async def login(req: LoginRequest, resp: Response):
 
 
 @router.post('/logout')
-async def logout(resp: Response):
+async def logout(resp: Response, pitcrew_session: str | None = Cookie(default=None)):
+    id_hash = auth.session_hash(pitcrew_session)
+    if id_hash:
+        await revoke_session(id_hash)
     resp.delete_cookie(
         auth.COOKIE_NAME, path='/',
         httponly=True, secure=True, samesite='strict',

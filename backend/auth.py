@@ -1,7 +1,9 @@
-# Session authentication — Argon2id access code + signed session cookie
+# Session authentication — Argon2id PIN + signed, server-revocable session cookie
 
+import hashlib
 import logging
 import os
+import re
 import secrets
 import time
 from collections import defaultdict
@@ -11,12 +13,15 @@ from argon2.exceptions import InvalidHash, VerificationError, VerifyMismatchErro
 from fastapi import Cookie, HTTPException, Request
 from itsdangerous import BadSignature, SignatureExpired, TimestampSigner
 
+from backend.db import session_active
+
 log = logging.getLogger(__name__)
 
 COOKIE_NAME = 'pitcrew_session'
 
-# Argon2id hash of the access code — generate with `python -m backend.auth`
-CODE_HASH = os.environ.get('PITCREW_CODE_HASH', '')
+# Argon2id hash of the PIN — generate with `python -m backend.auth`
+PIN_HASH = os.environ.get('PITCREW_PIN_HASH', '')
+PIN_PATTERN = r'^\d{6,12}$'
 
 # An unset key means sessions are signed with a per-process random secret, so
 # a restart logs everyone out. That beats shipping a guessable default that
@@ -35,44 +40,53 @@ _ph = PasswordHasher()  # Argon2id defaults
 _signer = TimestampSigner(SECRET_KEY)
 
 
-# ── Access code ─────────────────────────────────────────────────────────────
+# ── PIN ─────────────────────────────────────────────────────────────────────
 
-def hash_code(code: str) -> str:
-    """Argon2id hash for PITCREW_CODE_HASH."""
-    return _ph.hash(code)
+def hash_pin(pin: str) -> str:
+    """Argon2id hash for PITCREW_PIN_HASH."""
+    return _ph.hash(pin)
 
 
-def verify_code(code: str) -> bool:
+def verify_pin(pin: str) -> bool:
     # Fail closed: with no hash configured nobody gets in, rather than
     # falling back to an open instance
-    if not CODE_HASH:
-        log.error("PITCREW_CODE_HASH not set — login is disabled")
+    if not PIN_HASH:
+        log.error("PITCREW_PIN_HASH not set — login is disabled")
         return False
     try:
-        return _ph.verify(CODE_HASH, code)
+        return _ph.verify(PIN_HASH, pin)
     except (VerifyMismatchError, VerificationError, InvalidHash):
         return False
 
 
 # ── Session cookie ──────────────────────────────────────────────────────────
+# The cookie carries a signed random session ID. The DB stores only its SHA-256,
+# so logout revokes the session server-side and a leaked DB yields no cookies.
 
-def make_session_cookie() -> str:
-    return _signer.sign(b'ok').decode()
+def new_session() -> tuple[str, str]:
+    """(cookie value, session ID hash to store)."""
+    session_id = secrets.token_urlsafe(32)
+    return _signer.sign(session_id.encode()).decode(), _hash_id(session_id)
 
 
-def valid_session(cookie: str | None) -> bool:
+def session_hash(cookie: str | None) -> str | None:
+    """Stored hash for a cookie whose signature and age check out, else None."""
     if not cookie:
-        return False
+        return None
     try:
-        _signer.unsign(cookie, max_age=SESSION_TTL)
-        return True
+        return _hash_id(_signer.unsign(cookie, max_age=SESSION_TTL).decode())
     except (BadSignature, SignatureExpired):
-        return False
+        return None
+
+
+def _hash_id(session_id: str) -> str:
+    return hashlib.sha256(session_id.encode()).hexdigest()
 
 
 async def require_session(pitcrew_session: str | None = Cookie(default=None)):
-    """FastAPI dependency — rejects requests without a valid session cookie."""
-    if not valid_session(pitcrew_session):
+    """FastAPI dependency — rejects requests without a live, unrevoked session."""
+    id_hash = session_hash(pitcrew_session)
+    if not id_hash or not await session_active(id_hash):
         raise HTTPException(401, 'Unauthorized')
 
 
@@ -87,14 +101,18 @@ class _RateLimiter:
         self.message = message
         self._hits: dict[str, list[float]] = defaultdict(list)
 
-    def check(self, key: str):
+    def check(self, key: str, record: bool = True):
         now = time.monotonic()
         bucket = self._hits[key]
         # Prune expired entries
         self._hits[key] = bucket = [t for t in bucket if now - t < self.window]
         if len(bucket) >= self.max_calls:
             raise HTTPException(429, self.message)
-        bucket.append(now)
+        if record:
+            bucket.append(now)
+
+    def record(self, key: str):
+        self._hits[key].append(time.monotonic())
 
 
 def client_ip(request: Request) -> str:
@@ -109,8 +127,13 @@ def client_ip(request: Request) -> str:
 # 10 AI calls per minute per IP
 ai_limiter = _RateLimiter(10, 60, 'Too many AI requests — try again shortly')
 
-# 8 login attempts per 15 minutes per IP — brute-force brake on the access code
+# 8 login attempts per 15 minutes per IP — brute-force brake on the PIN
 login_limiter = _RateLimiter(8, 15 * 60, 'Too many attempts — try again later')
+
+# 20 failed logins per hour across all clients. X-Forwarded-For is client-supplied,
+# so the per-IP limit alone cannot stop a distributed or spoofed PIN guess.
+login_failures = _RateLimiter(20, 60 * 60, 'Too many attempts — try again later')
+GLOBAL_KEY = 'all'
 
 
 async def rate_limit_ai(request: Request):
@@ -119,19 +142,20 @@ async def rate_limit_ai(request: Request):
 
 
 async def rate_limit_login(request: Request):
-    """FastAPI dependency — rate-limits login attempts per client IP."""
+    """FastAPI dependency — rate-limits login attempts per client IP and globally."""
+    login_failures.check(GLOBAL_KEY, record=False)
     login_limiter.check(client_ip(request))
 
 
 # ── Hash generator ──────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    # Read from a prompt rather than argv so the code stays out of shell history
+    # Read from a prompt rather than argv so the PIN stays out of shell history
     from getpass import getpass
 
-    entered = getpass('Access code: ')
+    entered = getpass('PIN (6-12 digits): ')
+    if not re.fullmatch(PIN_PATTERN, entered):
+        raise SystemExit('PIN must be 6 to 12 digits')
     if entered != getpass('Confirm: '):
-        raise SystemExit('Codes do not match')
-    if not entered:
-        raise SystemExit('Empty code')
-    print(hash_code(entered))
+        raise SystemExit('PINs do not match')
+    print(hash_pin(entered))

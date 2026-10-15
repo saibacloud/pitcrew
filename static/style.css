@@ -1764,23 +1764,84 @@ main {
 
 .login-logo {
     font-size: 22px;
+    align-self: center;
 }
 
 .login-error {
     font-size: 13px;
     color: #e63946;
+    text-align: center;
 }
 
 .login-error[hidden] {
     display: none;
 }
 
-.login-submit {
-    width: 100%;
-    padding: 11px 18px;
+.login-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-align: center;
 }
 
-.login-submit:disabled {
+.login-pin {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 24px;
+    letter-spacing: 0.35em;
+    text-align: center;
+}
+
+.login-pin:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.pin-key {
+    height: 56px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 500;
+    touch-action: manipulation;
+}
+
+.pin-key:active {
+    background: var(--surface-2);
+}
+
+.pin-key-action {
+    font-size: 15px;
+    color: var(--muted);
+}
+
+.pin-key-submit {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+}
+
+.pin-key-submit:active {
+    background: var(--accent);
+    opacity: 0.85;
+}
+
+.pin-key-submit:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }

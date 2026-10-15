@@ -22,15 +22,26 @@
             <form class="login-card" id="login-form" novalidate>
                 <span class="logo login-logo">Pit<em>Crew</em></span>
 
-                <div class="form-group">
-                    <label for="login-code">Access code</label>
-                    <input type="password" id="login-code" name="code" autocomplete="current-password"
-                        placeholder="••••••••" required />
-                </div>
+                <label for="login-pin" class="login-label">PIN</label>
+                <input type="password" id="login-pin" class="login-pin" name="pin" inputmode="numeric"
+                    pattern="[0-9]*" maxlength="12" autocomplete="current-password" required />
 
                 <p class="login-error" id="login-error" role="alert" hidden></p>
 
-                <button type="submit" class="btn btn-primary login-submit" id="login-submit">Unlock</button>
+                <div class="pin-pad" id="pin-pad">
+                    <button type="button" class="pin-key" data-digit="1">1</button>
+                    <button type="button" class="pin-key" data-digit="2">2</button>
+                    <button type="button" class="pin-key" data-digit="3">3</button>
+                    <button type="button" class="pin-key" data-digit="4">4</button>
+                    <button type="button" class="pin-key" data-digit="5">5</button>
+                    <button type="button" class="pin-key" data-digit="6">6</button>
+                    <button type="button" class="pin-key" data-digit="7">7</button>
+                    <button type="button" class="pin-key" data-digit="8">8</button>
+                    <button type="button" class="pin-key" data-digit="9">9</button>
+                    <button type="button" class="pin-key pin-key-action" data-action="delete" aria-label="Delete">&#9003;</button>
+                    <button type="button" class="pin-key" data-digit="0">0</button>
+                    <button type="submit" class="pin-key pin-key-action pin-key-submit" id="login-submit">Unlock</button>
+                </div>
             </form>
         </main>
     </div>

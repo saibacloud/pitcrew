@@ -15,17 +15,17 @@ Your Gemini API key:
 GENAI_API_KEY=your_key_here
 ```
 
-An Argon2id hash of the access code you'll unlock the app with. The prompt keeps the code itself out of your shell history — only the hash is ever stored:
+An Argon2id hash of the 6–12 digit PIN you'll unlock the app with. The prompt keeps the PIN itself out of your shell history — only the hash is ever stored:
 
 ```sh
 python -m backend.auth
-# Access code: ****
-# Confirm: ****
+# PIN (6-12 digits): ******
+# Confirm: ******
 # $argon2id$v=19$m=65536,t=3,p=4$...
 ```
 
 ```
-PITCREW_CODE_HASH=$argon2id$v=19$m=65536,t=3,p=4$...
+PITCREW_PIN_HASH=$argon2id$v=19$m=65536,t=3,p=4$...
 ```
 
 And an HMAC key for signing session cookies:
@@ -38,7 +38,7 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 PITCREW_SECRET_KEY=generated_value_here
 ```
 
-If `PITCREW_CODE_HASH` is unset the app fails closed — nobody can log in. If `PITCREW_SECRET_KEY` is unset a random key is generated at boot, which works but logs everyone out on every restart.
+If `PITCREW_PIN_HASH` is unset the app fails closed — nobody can log in. If `PITCREW_SECRET_KEY` is unset a random key is generated at boot, which works but logs everyone out on every restart.
 
 Then run it however suits your setup:
 
@@ -50,13 +50,13 @@ uvicorn backend.app:app --reload
 docker compose up --build
 ```
 
-I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY`, `PITCREW_CODE_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
+I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
 The app serves on port 8000. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
 
 ## How it works
 
-On first visit you'll get an unlock screen asking for your access code. It's verified against the Argon2id hash in `PITCREW_CODE_HASH` and exchanged for an HttpOnly, `Secure`, `SameSite=strict` session cookie that lasts 12 hours — the code itself is never stored in the browser. Login is rate limited to 8 attempts per 15 minutes per IP. The **Lock** button in the garage header ends the session.
+On first visit you'll get a PIN pad. The PIN is verified against the Argon2id hash in `PITCREW_PIN_HASH` and exchanged for an HttpOnly, `Secure`, `SameSite=strict` session cookie that lasts 12 hours — the PIN itself is never stored in the browser. The cookie holds a signed random session ID; the database keeps only its SHA-256, and the **Lock** button revokes it server-side, so a copied cookie stops working once you lock. Login is rate limited to 8 attempts per 15 minutes per IP, and to 20 failed attempts per hour across all clients, since the per-IP limit keys on a client-supplied `X-Forwarded-For`. Hitting the global limit locks everyone out, you included, for up to an hour.
 
 The **Garage** is your landing page - a grid of your cars. Click one to open it up.
 
@@ -73,7 +73,7 @@ Once inside a car, you've got five sections to work with:
 | Layer | Tech |
 |-------|------|
 | Backend | FastAPI, async Python |
-| Auth | Argon2id access code, signed session cookie (itsdangerous), per-IP rate limits on login (8/15min) and AI endpoints (10/min) |
+| Auth | Argon2id PIN, signed session cookie (itsdangerous) backed by a revocable `sessions` table, login limits of 8/15min per IP and 20 failures/hour globally, AI limit 10/min per IP |
 | Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
 | AI | `gemini-flash-latest` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |
@@ -116,7 +116,7 @@ pitcrew/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── PLAN.md                 - roadmap and architectural decisions
-└── .env                    - GENAI_API_KEY, PITCREW_CODE_HASH, PITCREW_SECRET_KEY
+└── .env                    - GENAI_API_KEY, PITCREW_PIN_HASH, PITCREW_SECRET_KEY
 ```
 
 ## Data and storage

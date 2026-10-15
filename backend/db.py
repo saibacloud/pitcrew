@@ -124,6 +124,13 @@ CREATE TABLE IF NOT EXISTS searches (
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS sessions (
+    id_hash     TEXT PRIMARY KEY,
+    expires_at  TEXT NOT NULL,
+    revoked_at  TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS manuals (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
@@ -600,3 +607,33 @@ async def soft_delete_manual(manual_id: int) -> int:
         f"UPDATE manuals SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_MANUAL}",
         (manual_id,)
     )
+
+
+# ── Sessions ─────────────────────────────────────────────────────────────────
+
+async def create_session(id_hash: str, ttl_seconds: int) -> None:
+    await _execute(
+        "INSERT INTO sessions (id_hash, expires_at) VALUES (?, datetime('now', ?))",
+        (id_hash, f'+{int(ttl_seconds)} seconds')
+    )
+
+
+async def session_active(id_hash: str) -> bool:
+    row = await _fetchone(
+        "SELECT 1 FROM sessions WHERE id_hash = ? AND revoked_at IS NULL "
+        "AND expires_at > datetime('now')",
+        (id_hash,)
+    )
+    return row is not None
+
+
+async def revoke_session(id_hash: str) -> int:
+    return await _execute(
+        "UPDATE sessions SET revoked_at = datetime('now') WHERE id_hash = ? AND revoked_at IS NULL",
+        (id_hash,)
+    )
+
+
+async def prune_sessions() -> int:
+    # Expired rows can never authenticate again, so nothing depends on them
+    return await _execute("DELETE FROM sessions WHERE expires_at < datetime('now', '-30 days')")
