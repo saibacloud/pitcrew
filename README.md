@@ -66,7 +66,7 @@ Once inside a car, you've got five sections to work with:
 - **Journal** - your research log. Ask a question, Gemini answers it (grounded via Google Search) with your car's context and installed parts baked in, and lists the web sources it used so part numbers can be checked. Also holds freeform notes, a service log (date, odometer, work done, details), photos, and every document search answer - doc answers are saved automatically so nothing is lost. Car Info notes are fed into every AI prompt, so mileage/history/mods written there make answers more specific.
 - **Photo Pins** - upload photos from any angle (front, sides, rear, engine bay, underside, interior). Click anywhere on the photo to drop a pin, label the component, and ask AI to research that specific part. Gemini gets the photo with the pin marked plus a close-up of that spot, and flags it when the label doesn't match what it sees. The answer sticks to the pin so you don't lose it.
 - **Cart** - a running parts list. Name, part number, price, supplier link, category, and status tracking from wishlist through to installed.
-- **Documents** - upload workshop manuals (PDF/DOCX), reference images, or any other files. Tick the ones you want, type a question, and the AI searches through them for the answer.
+- **Documents** - upload workshop manuals (PDF/DOCX), reference images, or any other files. Tick the ones you want, type a question, and the AI answers from those documents only, citing pages. PDFs up to 300 pages in total (including scanned ones) are read whole, tables and diagrams included. For longer manuals, the best-matching pages are picked from the text layer and sent.
 
 ## Tech stack
 

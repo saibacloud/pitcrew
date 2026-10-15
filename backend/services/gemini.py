@@ -1,10 +1,14 @@
 # Gemini AI service
 # All AI interactions, prompt building, image prep
 
+import asyncio
 import io
 import logging
+import math
 import os
+import re
 import time
+from collections import Counter
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
@@ -125,13 +129,22 @@ def build_pin_research_prompt(
     )
 
 
+DOCS_SYSTEM_INSTRUCTION = """\
+You answer questions about one vehicle using only the documents the owner uploaded for it.
+
+- Use only what the documents say. Do not fill gaps from general knowledge. If the documents do not answer the question, say so plainly and point to the closest thing they do cover.
+- Copy part numbers, torque values, capacities, clearances and specifications exactly as printed, with units.
+- Cite the document and page for every value, e.g. (Workshop Manual, p. 147), using the page numbering each document's label describes.
+- Manuals often cover several engines, trims, markets or model years. Use the vehicle profile to pick the matching variant. If a value differs by variant, give each and say which applies to this vehicle or what to check.
+- Read tables, diagrams, exploded views and callout numbers as well as body text.
+
+Format: **bold** section headings and "- " bullet lists. No tables and no preamble."""
+
+
 def build_docsearch_prompt(car: dict, question: str) -> str:
-    desc = car_description(car)
     return (
-        f"You are an expert automotive technician assistant for a {desc}.\n"
-        f"The content above consists of relevant excerpts from this car's uploaded documents.\n"
-        f"Answer the following question as specifically as possible, citing page numbers or "
-        f"section names from the excerpts where available.\n\n"
+        f"{vehicle_profile(car)}\n\n"
+        f"Answer this question using only the documents above.\n\n"
         f"Question: {question}"
     )
 
@@ -282,54 +295,100 @@ async def research_with_images(prompt_text: str, images: list[bytes]) -> str:
 
 
 async def ask_documents(content_parts: list, car: dict, question: str) -> str:
-    """Gemini call with document content parts + question."""
-    content_parts.append(types.Part.from_text(text=build_docsearch_prompt(car, question)))
-    t0 = time.monotonic()
-    try:
-        response = await client.aio.models.generate_content(
-            model=MODEL,
-            contents=types.Content(role='user', parts=content_parts),
-            config=types.GenerateContentConfig(temperature=0.1),
-        )
-        elapsed = time.monotonic() - t0
-        log.info("Gemini doc search completed in %.1fs", elapsed)
-        return response.text.strip()
-    except Exception:
-        log.exception("Gemini document search call failed")
-        raise
+    """Answer from the given document parts only; the question goes after the documents."""
+    parts = content_parts + [types.Part.from_text(text=build_docsearch_prompt(car, question))]
+    config = types.GenerateContentConfig(system_instruction=DOCS_SYSTEM_INSTRUCTION)
+    return await _generate(types.Content(role='user', parts=parts), config, 'doc search')
 
 
-# ── Document chunking ────────────────────────────────────────────────────────
+# ── Documents ────────────────────────────────────────────────────────────────
 
-def relevant_chunks(
-    text: str,
-    question: str,
-    chunk_size: int = 2000,
-    overlap: int = 500,
-    top_n: int = 8,
-) -> list[str]:
-    """Return the top_n overlapping chunks most relevant to the question by keyword overlap."""
-    if not text:
+# Gemini reads PDFs natively (text layer plus page images), so tables, diagrams
+# and scanned pages survive. Medium is Google's recommended PDF resolution.
+_PDF_RESOLUTION = types.PartMediaResolutionLevel.MEDIA_RESOLUTION_MEDIUM
+_INLINE_LIMIT = 20 * 1024 * 1024
+_FILE_TTL = 47 * 3600  # Files API keeps uploads for 48h
+
+_uploaded: dict[str, tuple[str, float]] = {}  # cache key -> (file uri, expiry)
+
+
+async def _upload_pdf(file) -> str:
+    """Upload a PDF path or stream through the Files API and return its URI once active."""
+    f = await client.aio.files.upload(file=file, config=types.UploadFileConfig(mime_type='application/pdf'))
+    while f.state == types.FileState.PROCESSING:
+        await asyncio.sleep(1)
+        f = await client.aio.files.get(name=f.name)
+    if f.state == types.FileState.FAILED:
+        raise RuntimeError(f'Gemini could not process uploaded PDF {f.name}')
+    return f.uri
+
+
+async def pdf_file_part(path: str, cache_key: str) -> types.Part:
+    """Part for a whole PDF, uploaded once and reused until the upload expires."""
+    hit = _uploaded.get(cache_key)
+    if hit and hit[1] > time.time():
+        uri = hit[0]
+    else:
+        uri = await _upload_pdf(path)
+        _uploaded[cache_key] = (uri, time.time() + _FILE_TTL)
+    return types.Part.from_uri(file_uri=uri, mime_type='application/pdf', media_resolution=_PDF_RESOLUTION)
+
+
+async def pdf_bytes_part(data: bytes) -> types.Part:
+    """Part for a PDF built per question; uploaded uncached only when too big to inline."""
+    if len(data) <= _INLINE_LIMIT:
+        return types.Part.from_bytes(data=data, mime_type='application/pdf', media_resolution=_PDF_RESOLUTION)
+    uri = await _upload_pdf(io.BytesIO(data))
+    return types.Part.from_uri(file_uri=uri, mime_type='application/pdf', media_resolution=_PDF_RESOLUTION)
+
+
+# ── Passage ranking ──────────────────────────────────────────────────────────
+
+# Keeps part numbers, oil grades and thread sizes whole: 15400-plm-a02, 5w-30, m12x1.25
+_TOKEN = re.compile(r'[a-z0-9]+(?:[-./][a-z0-9]+)*')
+_STOP = {
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has',
+    'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may',
+    'might', 'can', 'for', 'of', 'to', 'in', 'on', 'at', 'by', 'from',
+    'with', 'and', 'or', 'but', 'if', 'what', 'how', 'where', 'when',
+    'which', 'who', 'that', 'this', 'i', 'my', 'me', 'it', 'its', 'there',
+    'about', 'need', 'find', 'tell', 'show', 'car', 'vehicle',
+}
+
+
+def _terms(text: str) -> list[str]:
+    terms = []
+    for tok in _TOKEN.findall(text.lower()):
+        terms.append(tok)
+        if not tok.isalnum():
+            terms.extend(p for p in re.split(r'[-./]', tok) if p)
+    return terms
+
+
+def rank_passages(passages: list[str], question: str, k1: float = 1.5, b: float = 0.75) -> list[int]:
+    """Indexes of passages that match the question, best first, scored with Okapi BM25."""
+    query = {t for t in _terms(question) if t not in _STOP and (len(t) > 2 or any(c.isdigit() for c in t))}
+    if not query or not passages:
         return []
+    counts = [Counter(_terms(p)) for p in passages]
+    lengths = [sum(c.values()) for c in counts]
+    avg_len = (sum(lengths) / len(lengths)) or 1
+    n = len(passages)
+    idf = {}
+    for t in query:
+        df = sum(1 for c in counts if t in c)
+        idf[t] = math.log(1 + (n - df + 0.5) / (df + 0.5))
 
-    # Build overlapping chunks
-    chunks = []
-    start = 0
-    while start < len(text):
-        chunks.append(text[start:start + chunk_size])
-        start += chunk_size - overlap
+    scored = []
+    for i, c in enumerate(counts):
+        score = sum(
+            idf[t] * c[t] * (k1 + 1) / (c[t] + k1 * (1 - b + b * lengths[i] / avg_len))
+            for t in query if c[t]
+        )
+        if score > 0:
+            scored.append((score, i))
+    return [i for _, i in sorted(scored, key=lambda x: -x[0])]
 
-    stop = {
-        'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has',
-        'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may',
-        'might', 'can', 'for', 'of', 'to', 'in', 'on', 'at', 'by', 'from',
-        'with', 'and', 'or', 'but', 'if', 'what', 'how', 'where', 'when',
-        'which', 'who', 'that', 'this', 'i', 'my', 'me',
-    }
-    keywords = {w for w in question.lower().split() if w not in stop and len(w) > 2}
-    scored = sorted(
-        ((sum(1 for kw in keywords if kw in chunk.lower()), chunk) for chunk in chunks),
-        key=lambda x: x[0], reverse=True,
-    )
-    result = [c for score, c in scored[:top_n] if score > 0]
-    return result or [chunks[0]]
+
+def text_chunks(text: str, size: int = 2000, overlap: int = 400) -> list[str]:
+    return [text[i:i + size] for i in range(0, max(len(text) - overlap, 1), size - overlap)]
