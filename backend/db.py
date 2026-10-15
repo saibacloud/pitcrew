@@ -124,13 +124,6 @@ CREATE TABLE IF NOT EXISTS searches (
     created_at      TEXT DEFAULT (datetime('now'))
 );
 
-CREATE TABLE IF NOT EXISTS sessions (
-    id_hash     TEXT PRIMARY KEY,
-    expires_at  TEXT NOT NULL,
-    revoked_at  TEXT,
-    created_at  TEXT DEFAULT (datetime('now'))
-);
-
 CREATE TABLE IF NOT EXISTS manuals (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
@@ -139,6 +132,13 @@ CREATE TABLE IF NOT EXISTS manuals (
     category    TEXT DEFAULT 'manual'
                 CHECK(category IN ('manual', 'reference', 'other')),
     deleted_at  TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id_hash     TEXT PRIMARY KEY,
+    expires_at  TEXT NOT NULL,
+    revoked_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
 """
