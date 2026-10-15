@@ -1805,3 +1805,19 @@ main {
     border-color: var(--accent);
     color: var(--text);
 }
+
+/* ── Google Search suggestions (required with grounded answers) ──────────── */
+
+.search-suggestions {
+    display: block;
+    width: 100%;
+    height: 64px;
+    margin-top: 10px;
+    border: 0;
+}
+
+.research-answer a,
+.pin-research-result a {
+    color: inherit;
+    text-decoration: underline;
+}

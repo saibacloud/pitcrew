@@ -9,6 +9,7 @@ import os
 import re
 import time
 from collections import Counter
+from typing import NamedTuple
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageOps
@@ -232,6 +233,12 @@ def make_thumbnail(raw_bytes: bytes, size: int = 400) -> bytes:
 
 # ── AI calls ─────────────────────────────────────────────────────────────────
 
+class Answer(NamedTuple):
+    text: str
+    # Google's Search Suggestions HTML; the Gemini API terms require showing it with grounded answers
+    search_suggestions: str | None = None
+
+
 class EmptyResponse(Exception):
     """Gemini returned no answer text (safety block, recitation stop or empty candidate)."""
 
@@ -247,7 +254,7 @@ def _grounding_sources(response) -> list[tuple[str, str]]:
     return [(title, uri) for uri, title in sources.items()]
 
 
-async def _generate(contents, config: types.GenerateContentConfig, label: str) -> str:
+async def _generate(contents, config: types.GenerateContentConfig, label: str) -> Answer:
     t0 = time.monotonic()
     try:
         response = await client.aio.models.generate_content(model=MODEL, contents=contents, config=config)
@@ -265,7 +272,9 @@ async def _generate(contents, config: types.GenerateContentConfig, label: str) -
     sources = _grounding_sources(response)
     if sources:
         text += '\n\n**Sources**\n' + '\n'.join(f'- [{title}]({uri})' for title, uri in sources)
-    return text
+    meta = response.candidates[0].grounding_metadata
+    entry = meta.search_entry_point if meta else None
+    return Answer(text, entry.rendered_content if entry else None)
 
 
 def _grounded_config() -> types.GenerateContentConfig:
@@ -276,12 +285,12 @@ def _grounded_config() -> types.GenerateContentConfig:
     )
 
 
-async def research(prompt: str) -> str:
+async def research(prompt: str) -> Answer:
     """Text-only parts research grounded with Google Search."""
     return await _generate(prompt, _grounded_config(), 'research')
 
 
-async def research_with_images(prompt_text: str, images: list[bytes]) -> str:
+async def research_with_images(prompt_text: str, images: list[bytes]) -> Answer:
     """Photo parts research grounded with Google Search. Images are JPEG."""
     parts = [
         types.Part.from_bytes(
@@ -298,7 +307,7 @@ async def ask_documents(content_parts: list, car: dict, question: str) -> str:
     """Answer from the given document parts only; the question goes after the documents."""
     parts = content_parts + [types.Part.from_text(text=build_docsearch_prompt(car, question))]
     config = types.GenerateContentConfig(system_instruction=DOCS_SYSTEM_INSTRUCTION)
-    return await _generate(types.Content(role='user', parts=parts), config, 'doc search')
+    return (await _generate(types.Content(role='user', parts=parts), config, 'doc search')).text
 
 
 # ── Documents ────────────────────────────────────────────────────────────────

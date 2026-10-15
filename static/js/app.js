@@ -38,7 +38,15 @@ export async function apiUpload(method, path, formData) {
 async function request(path, opts) {
     const res = await fetch(path, { credentials: 'same-origin', ...opts });
     if (res.status === 401) { showLogin(); throw new Error('Unauthorized'); }
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).detail; } catch { /* non-JSON error body */ }
+        const err = new Error(`${res.status} ${detail}`);
+        err.status = res.status;
+        // FastAPI validation errors carry a list; only plain messages are user-facing
+        err.detail = typeof detail === 'string' ? detail : '';
+        throw err;
+    }
     if (res.status === 204) return null;
     return res.json();
 }
@@ -50,7 +58,8 @@ export function toast(msg) {
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove('show'), 2800);
+    // Longer messages (e.g. why a document can't be read) stay up long enough to read
+    el._t = setTimeout(() => el.classList.remove('show'), Math.max(2800, msg.length * 60));
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -70,11 +79,20 @@ export function aiLoadingHtml(text = 'Thinking') {
     return `<div class="ai-loading">${text}<div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
 }
 
-export function isAiBusy(error) {
-    return error && error.message && error.message.includes('502');
+// The server's reason when it gave one, otherwise the caller's fallback
+export function errorMessage(error, fallback) {
+    return (error && error.detail) || fallback;
 }
 
-export const AI_BUSY_MSG = 'Google AI is busy right now, give it a moment and try again';
+// Google's Search Suggestions for a grounded answer, isolated in a sandboxed frame:
+// no scripts, opaque origin, links open in a new tab
+export function searchSuggestionsHtml(html) {
+    if (!html) return '';
+    const doc = '<base target="_blank">' + html;
+    const attr = doc.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    return `<iframe class="search-suggestions" title="Google Search suggestions" `
+        + `sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc="${attr}"></iframe>`;
+}
 
 export function renderMarkdown(str) {
     return escapeHtml(str)

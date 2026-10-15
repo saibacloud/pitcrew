@@ -133,11 +133,11 @@ async def research_pin(pin_id: int):
     )
 
     try:
-        summary = await gemini.research_with_images(prompt_text, images)
+        answer = await gemini.research_with_images(prompt_text, images)
     except Exception:
         raise HTTPException(502, 'AI research failed — try again shortly')
-    await update_photopin(pin_id, {'ai_summary': summary})
-    return {'summary': summary}
+    await update_photopin(pin_id, {'ai_summary': answer.text, 'search_suggestions': answer.search_suggestions})
+    return {'summary': answer.text, 'search_suggestions': answer.search_suggestions}
 
 
 @router.delete('/pins/{pin_id}', status_code=204)

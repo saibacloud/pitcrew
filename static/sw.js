@@ -1,5 +1,5 @@
 // PitCrew service worker — network-first with offline shell fallback
-const CACHE_NAME = 'pitcrew-v4';
+const CACHE_NAME = 'pitcrew-v5';
 const SHELL_ASSETS = [
     '/',
     '/static/style.css',
@@ -39,8 +39,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
     const url = new URL(e.request.url);
 
-    // API calls — always network, never cache
-    if (url.pathname.startsWith('/api/')) {
+    // API calls and private uploads — always network, never cache
+    if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/static/uploads/')) {
         return;
     }
 

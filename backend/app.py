@@ -6,7 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -64,6 +64,18 @@ app.include_router(journal_router, dependencies=api_deps)
 app.include_router(views_router, dependencies=api_deps)
 app.include_router(parts_router, dependencies=api_deps)
 app.include_router(manuals_router, dependencies=api_deps)
+
+# Uploads (manuals, photos) sit under /static/uploads but need a session.
+# Registered before the static mount so it takes precedence for these paths.
+@app.api_route('/static/uploads/{path:path}', methods=['GET', 'HEAD'], dependencies=[Depends(require_session)])
+async def uploaded_file(path: str):
+    root = os.path.realpath(UPLOADS_DIR)
+    target = os.path.realpath(os.path.join(root, path))
+    if not target.startswith(root + os.sep) or not os.path.isfile(target):
+        raise HTTPException(404, 'Not found')
+    # private: browsers may cache for the session, shared proxies may not
+    return FileResponse(target, headers={'Cache-Control': 'private, no-store'})
+
 
 # Static frontend (no auth — serves the login page)
 app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')

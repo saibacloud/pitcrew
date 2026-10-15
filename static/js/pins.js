@@ -1,6 +1,6 @@
 // PitCrew — photo pins (views, pin overlay, AI research)
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
 import { pitcrewPrompt, pitcrewConfirm } from './dialogs.js';
 
 let carViews = {};      // { angle: [view, ...] }
@@ -66,12 +66,13 @@ async function renderViewTab(angle) {
                     const research = pinResearch[pin.id];
                     const isLoading = !!(research && research.loading);
                     const summary = isLoading ? null : ((research && research.summary) || pin.ai_summary || null);
+                    const suggestions = (research && research.summary) ? research.suggestions : pin.search_suggestions;
                     const aiLabel = isLoading ? 'Researching...' : 'Ask AI';
                     const viewAnswerBtn = summary
                         ? `<button class="btn btn-ghost" data-action="toggle-pin-answer" data-pin-id="${pin.id}">View Answer</button>`
                         : '';
                     const answerDiv = summary
-                        ? `<div class="pin-research-result" id="pin-answer-${pin.id}" style="display:none"><p>${renderMarkdown(summary)}</p></div>`
+                        ? `<div class="pin-research-result" id="pin-answer-${pin.id}" style="display:none"><p>${renderMarkdown(summary)}</p>${searchSuggestionsHtml(suggestions)}</div>`
                         : '';
                     const loadingDiv = isLoading
                         ? `<div class="pin-research-result pin-research-loading">${aiLoadingHtml('Researching')}</div>`
@@ -180,7 +181,7 @@ async function handleViewUpload(angle, event) {
             if (!carViews[angle]) carViews[angle] = [];
             carViews[angle].push(newView);
             toast('Photo saved');
-        } catch (e) { toast('Photo upload failed'); }
+        } catch (e) { toast(errorMessage(e, 'Photo upload failed')); }
     }
     event.target.value = '';
     await renderViewTab(angle);
@@ -235,10 +236,10 @@ async function researchPin(pinId, viewId, angle) {
     await renderViewTab(angle);
     try {
         const data = await api('POST', `/api/pins/${pinId}/research`);
-        pinResearch[pinId] = { loading: false, summary: data.summary };
+        pinResearch[pinId] = { loading: false, summary: data.summary, suggestions: data.search_suggestions };
     } catch (e) {
         pinResearch[pinId] = { loading: false, summary: null };
-        toast(isAiBusy(e) ? AI_BUSY_MSG : 'AI research failed');
+        toast(errorMessage(e, 'AI research failed'));
     }
     await renderViewTab(angle);
 }

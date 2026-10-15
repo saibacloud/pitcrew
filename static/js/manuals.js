@@ -1,6 +1,6 @@
 // PitCrew — manuals / documents
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 import { addSavedEntry } from './journal.js';
 
@@ -87,7 +87,7 @@ async function handleManualUpload(event, category) {
             await apiUpload('POST', `/api/cars/${activeCar.id}/manuals?category=${category}`, formData);
             toast(`${file.name} uploaded`);
         } catch (e) {
-            toast(`Failed: ${file.name}`);
+            toast(`${file.name}: ${errorMessage(e, 'upload failed')}`);
         }
     }
     event.target.value = '';
@@ -130,7 +130,7 @@ async function askDocuments() {
         addSavedEntry(data.journal_entry);
         input.value = '';
     } catch (e) {
-        toast(isAiBusy(e) ? AI_BUSY_MSG : 'AI search failed');
+        toast(errorMessage(e, 'AI search failed'));
     } finally {
         btn.disabled = selectedManualIds.size === 0;
         updateDocAskBtn();

@@ -132,6 +132,7 @@ async def research(car_id: int, req: ResearchRequest):
     entry_id = await create_journal(car_id, {
         'type': 'research',
         'title': req.query,
-        'body': answer,
+        'body': answer.text,
+        'search_suggestions': answer.search_suggestions,
     })
     return await get_journal(entry_id)

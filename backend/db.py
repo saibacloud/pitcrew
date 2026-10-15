@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS journal (
     body        TEXT,
     photo_url   TEXT,
     odometer    INTEGER,
+    search_suggestions TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS photopins (
     x_pct       REAL,
     y_pct       REAL,
     ai_summary  TEXT,
+    search_suggestions TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -183,6 +185,8 @@ async def init_db():
         "ALTER TABLE photopins ADD COLUMN deleted_at TEXT",
         "ALTER TABLE views ADD COLUMN deleted_at TEXT",
         "ALTER TABLE journal ADD COLUMN odometer INTEGER",
+        "ALTER TABLE journal ADD COLUMN search_suggestions TEXT",
+        "ALTER TABLE photopins ADD COLUMN search_suggestions TEXT",
     ]
     for stmt in _migrations:
         try:
@@ -263,11 +267,14 @@ async def init_db():
                 body        TEXT,
                 photo_url   TEXT,
                 odometer    INTEGER,
+                search_suggestions TEXT,
                 deleted_at  TEXT,
                 created_at  TEXT DEFAULT (datetime('now'))
             );
-            INSERT INTO journal_new (id, car_id, type, title, body, photo_url, odometer, deleted_at, created_at)
-                SELECT id, car_id, type, title, body, photo_url, odometer, deleted_at, created_at FROM journal;
+            INSERT INTO journal_new (id, car_id, type, title, body, photo_url, odometer,
+                                     search_suggestions, deleted_at, created_at)
+                SELECT id, car_id, type, title, body, photo_url, odometer,
+                       search_suggestions, deleted_at, created_at FROM journal;
             DROP TABLE journal;
             ALTER TABLE journal_new RENAME TO journal;
         """)
@@ -366,7 +373,7 @@ async def update_car_photo(car_id: int, photo_url: Optional[str]) -> int:
 
 # ── Journal ──────────────────────────────────────────────────────────────────
 
-_JOURNAL_FIELDS = ('type', 'title', 'body', 'photo_url', 'odometer')
+_JOURNAL_FIELDS = ('type', 'title', 'body', 'photo_url', 'odometer', 'search_suggestions')
 _LIVE_JOURNAL = "deleted_at IS NULL"
 
 
@@ -395,9 +402,10 @@ async def create_journal(car_id: int, data: dict) -> int:
     if j_type not in VALID_JOURNAL_TYPES:
         raise ValueError(f"Invalid journal type: {j_type}")
     return await _insert(
-        "INSERT INTO journal (car_id, type, title, body, photo_url, odometer) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO journal (car_id, type, title, body, photo_url, odometer, search_suggestions) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (car_id, j_type, data.get('title', ''), data.get('body'), data.get('photo_url'),
-         data.get('odometer'))
+         data.get('odometer'), data.get('search_suggestions'))
     )
 
 
@@ -467,7 +475,7 @@ async def soft_delete_view(view_id: int) -> int:
 
 # ── Photo Pins ───────────────────────────────────────────────────────────────
 
-_PHOTOPIN_FIELDS = ('label', 'notes', 'status', 'x_pct', 'y_pct', 'ai_summary')
+_PHOTOPIN_FIELDS = ('label', 'notes', 'status', 'x_pct', 'y_pct', 'ai_summary', 'search_suggestions')
 _LIVE_PIN = "deleted_at IS NULL"
 
 

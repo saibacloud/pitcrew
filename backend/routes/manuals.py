@@ -32,7 +32,7 @@ MANUALS_DIR = os.path.join(STATIC_DIR, 'uploads', 'manuals')
 MAX_MANUAL_UPLOAD = 100 * 1024 * 1024  # 100 MB
 
 ALLOWED_EXTENSIONS: dict = {
-    'manual':    {'.pdf', '.docx', '.doc'},
+    'manual':    {'.pdf', '.docx'},
     'reference': {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.bmp'},
     'other':     None,  # any
 }
@@ -255,7 +255,7 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
                     media_resolution=types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH,
                 ))
             else:
-                if ext in ('.docx', '.doc'):
+                if ext == '.docx':
                     text = await asyncio.to_thread(_docx_text, filepath)
                 else:
                     with open(filepath, 'r', errors='replace') as f:
