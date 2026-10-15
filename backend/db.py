@@ -522,6 +522,14 @@ async def get_parts(car_id: int, *, limit: int = 100, offset: int = 0):
     )
 
 
+async def get_installed_parts(car_id: int, limit: int = 40):
+    return await _fetchall(
+        f"SELECT name, part_number FROM parts WHERE car_id = ? AND status = 'installed' "
+        f"AND {_LIVE_PART} ORDER BY created_at DESC LIMIT ?",
+        (car_id, limit)
+    )
+
+
 async def count_parts(car_id: int) -> int:
     row = await _fetchone(
         f"SELECT COUNT(*) as cnt FROM parts WHERE car_id = ? AND {_LIVE_PART}",

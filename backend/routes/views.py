@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend.auth import rate_limit_ai
 from backend.db import (
-    get_car, get_view, get_views, create_view, soft_delete_view,
+    get_car, get_installed_parts, get_view, get_views, create_view, soft_delete_view,
     get_photopin, get_photopins, create_photopin, update_photopin, soft_delete_photopin,
     VALID_VIEW_ANGLES,
 )
@@ -125,15 +125,19 @@ async def research_pin(pin_id: int):
     with open(filepath, 'rb') as f:
         raw_bytes = f.read()
 
-    clean_bytes, mime_type = gemini.strip_exif(raw_bytes)
-    prompt_text = gemini.build_pin_research_prompt(car, pin, view.get('angle', ''))
+    images = gemini.pin_images(raw_bytes, pin.get('x_pct'), pin.get('y_pct'))
+    prompt_text = gemini.build_pin_research_prompt(
+        car, pin, view.get('angle', ''),
+        installed_parts=await get_installed_parts(car['id']),
+        has_marker=len(images) > 1,
+    )
 
     try:
-        summary = await gemini.research_with_image(prompt_text, clean_bytes, mime_type)
-        await update_photopin(pin_id, {'ai_summary': summary})
-        return {'summary': summary}
+        summary = await gemini.research_with_images(prompt_text, images)
     except Exception:
         raise HTTPException(502, 'AI research failed — try again shortly')
+    await update_photopin(pin_id, {'ai_summary': summary})
+    return {'summary': summary}
 
 
 @router.delete('/pins/{pin_id}', status_code=204)

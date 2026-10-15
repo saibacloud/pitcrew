@@ -62,9 +62,9 @@ The **Garage** is your landing page - a grid of your cars. Click one to open it 
 
 Once inside a car, you've got five sections to work with:
 
-- **Car Info** - the basics: year, make, model, trim, engine, VIN, colour/paint code, notes, and a photo. This is the context that feeds every AI query.
-- **Journal** - your research log. Ask a question, Gemini answers it (grounded via Google Search) with your car's context baked in. Also holds freeform notes, a service log (date, odometer, work done, details), photos, and every document search answer - doc answers are saved automatically so nothing is lost. Car Info notes are fed into every AI prompt, so mileage/history/mods written there make answers more specific.
-- **Photo Pins** - upload photos from any angle (front, sides, rear, engine bay, underside, interior). Click anywhere on the photo to drop a pin, label the component, and ask AI to research that specific part. The answer sticks to the pin so you don't lose it.
+- **Car Info** - the basics: year, make, model, trim, engine, VIN, colour/paint code, notes, and a photo. This is the context that feeds every AI query. The VIN is sent to Gemini because fitment often splits by VIN or build range.
+- **Journal** - your research log. Ask a question, Gemini answers it (grounded via Google Search) with your car's context and installed parts baked in, and lists the web sources it used so part numbers can be checked. Also holds freeform notes, a service log (date, odometer, work done, details), photos, and every document search answer - doc answers are saved automatically so nothing is lost. Car Info notes are fed into every AI prompt, so mileage/history/mods written there make answers more specific.
+- **Photo Pins** - upload photos from any angle (front, sides, rear, engine bay, underside, interior). Click anywhere on the photo to drop a pin, label the component, and ask AI to research that specific part. Gemini gets the photo with the pin marked plus a close-up of that spot, and flags it when the label doesn't match what it sees. The answer sticks to the pin so you don't lose it.
 - **Cart** - a running parts list. Name, part number, price, supplier link, category, and status tracking from wishlist through to installed.
 - **Documents** - upload workshop manuals (PDF/DOCX), reference images, or any other files. Tick the ones you want, type a question, and the AI searches through them for the answer.
 
@@ -75,7 +75,7 @@ Once inside a car, you've got five sections to work with:
 | Backend | FastAPI, async Python |
 | Auth | Argon2id access code, signed session cookie (itsdangerous), per-IP rate limits on login (8/15min) and AI endpoints (10/min) |
 | Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
-| AI | `gemini-flash-latest` (google-genai) with Google Search grounding |
+| AI | `gemini-flash-latest` by default, override with `GEMINI_MODEL` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |
 | Deploy | Docker image built by Coolify from Forgejo, fronted by NPM |
 

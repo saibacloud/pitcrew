@@ -78,6 +78,7 @@ export const AI_BUSY_MSG = 'Google AI is busy right now, give it a moment and tr
 
 export function renderMarkdown(str) {
     return escapeHtml(str)
+        .replace(/\[([^\]]+)\]\((https:\/\/[^\s)"]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')

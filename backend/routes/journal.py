@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from backend.auth import rate_limit_ai
 from backend.db import (
-    get_car, get_journal, get_journals, count_journals,
+    get_car, get_journal, get_journals, count_journals, get_installed_parts,
     create_journal, update_journal, soft_delete_journal,
 )
 from backend.services import gemini
@@ -123,7 +123,7 @@ async def research(car_id: int, req: ResearchRequest):
     if not car:
         raise HTTPException(404, 'Car not found')
 
-    prompt = gemini.build_research_prompt(car, req.query)
+    prompt = gemini.build_research_prompt(car, req.query, await get_installed_parts(car_id))
     try:
         answer = await gemini.research(prompt)
     except Exception:
