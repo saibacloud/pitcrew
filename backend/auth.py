@@ -101,18 +101,14 @@ class _RateLimiter:
         self.message = message
         self._hits: dict[str, list[float]] = defaultdict(list)
 
-    def check(self, key: str, record: bool = True):
+    def check(self, key: str):
         now = time.monotonic()
         bucket = self._hits[key]
         # Prune expired entries
         self._hits[key] = bucket = [t for t in bucket if now - t < self.window]
         if len(bucket) >= self.max_calls:
             raise HTTPException(429, self.message)
-        if record:
-            bucket.append(now)
-
-    def record(self, key: str):
-        self._hits[key].append(time.monotonic())
+        bucket.append(now)
 
 
 def client_ip(request: Request) -> str:
@@ -130,11 +126,6 @@ ai_limiter = _RateLimiter(10, 60, 'Too many AI requests — try again shortly')
 # 8 login attempts per 15 minutes per IP — brute-force brake on the PIN
 login_limiter = _RateLimiter(8, 15 * 60, 'Too many attempts — try again later')
 
-# 20 failed logins per hour across all clients. X-Forwarded-For is client-supplied,
-# so the per-IP limit alone cannot stop a distributed or spoofed PIN guess.
-login_failures = _RateLimiter(20, 60 * 60, 'Too many attempts — try again later')
-GLOBAL_KEY = 'all'
-
 
 async def rate_limit_ai(request: Request):
     """FastAPI dependency — rate-limits AI endpoints per client IP."""
@@ -142,8 +133,7 @@ async def rate_limit_ai(request: Request):
 
 
 async def rate_limit_login(request: Request):
-    """FastAPI dependency — rate-limits login attempts per client IP and globally."""
-    login_failures.check(GLOBAL_KEY, record=False)
+    """FastAPI dependency — rate-limits login attempts per client IP."""
     login_limiter.check(client_ip(request))
 
 

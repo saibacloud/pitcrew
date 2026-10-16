@@ -56,7 +56,7 @@ The app serves on port 8000. Note that the session cookie is `Secure`, so PitCre
 
 ## How it works
 
-On first visit you'll get a PIN pad. The PIN is verified against the Argon2id hash in `PITCREW_PIN_HASH` and exchanged for an HttpOnly, `Secure`, `SameSite=strict` session cookie that lasts 12 hours — the PIN itself is never stored in the browser. The cookie holds a signed random session ID; the database keeps only its SHA-256, and the **Lock** button revokes it server-side, so a copied cookie stops working once you lock. Login is rate limited to 8 attempts per 15 minutes per IP, and to 20 failed attempts per hour across all clients, since the per-IP limit keys on a client-supplied `X-Forwarded-For`. Hitting the global limit locks everyone out, you included, for up to an hour.
+On first visit you'll get a PIN pad. The PIN is verified against the Argon2id hash in `PITCREW_PIN_HASH` and exchanged for an HttpOnly, `Secure`, `SameSite=strict` session cookie that lasts 12 hours — the PIN itself is never stored in the browser. The cookie holds a signed random session ID; the database keeps only its SHA-256, and the **Lock** button revokes it server-side, so a copied cookie stops working once you lock. Login is rate limited to 8 attempts per 15 minutes per IP.
 
 The **Garage** is your landing page - a grid of your cars. Click one to open it up.
 
@@ -73,7 +73,7 @@ Once inside a car, you've got five sections to work with:
 | Layer | Tech |
 |-------|------|
 | Backend | FastAPI, async Python |
-| Auth | Argon2id PIN, signed session cookie (itsdangerous) backed by a revocable `sessions` table, login limits of 8/15min per IP and 20 failures/hour globally, AI limit 10/min per IP |
+| Auth | Argon2id PIN, signed session cookie (itsdangerous) backed by a revocable `sessions` table, login limit 8/15min per IP, AI limit 10/min per IP |
 | Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
 | AI | `gemini-flash-latest` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |

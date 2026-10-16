@@ -17,7 +17,6 @@ class LoginRequest(BaseModel):
 @router.post('/login', dependencies=[Depends(auth.rate_limit_login)])
 async def login(req: LoginRequest, resp: Response):
     if not auth.verify_pin(req.pin):
-        auth.login_failures.record(auth.GLOBAL_KEY)
         raise HTTPException(401, 'Incorrect PIN')
     cookie, id_hash = auth.new_session()
     await prune_sessions()
