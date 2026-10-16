@@ -10,7 +10,7 @@ The purpose is to cut through the noise of old forums, Facebook comments, and sc
 
 ### Backend (FastAPI + aiosqlite + SQLite)
 
-Fully async API on port 8000. Serves the frontend as static files from the same process. No ORM — raw async SQL through `db.py` with `ALTER TABLE` migration guards on startup.
+Fully async API on port 8600. Serves the frontend as static files from the same process. No ORM — raw async SQL through `db.py` with `ALTER TABLE` migration guards on startup.
 
 **Cars** — full CRUD. Fields: year, make, model, trim, options, engine, color, VIN, notes, photo (uploaded to `static/uploads/`).
 

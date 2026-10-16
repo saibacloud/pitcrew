@@ -52,7 +52,7 @@ docker compose up --build
 
 I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
-The app serves on port 8000. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
+The app serves on port 8600. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
 
 ## How it works
 
