@@ -1,6 +1,6 @@
 // PitCrew — journal (research, notes, converse, doc search, photos)
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, isAiBusy, AI_BUSY_MSG } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let journalEntries = [];
@@ -55,7 +55,7 @@ function renderJournalTab(type) {
                 : '';
             const detailsRow = e.body
                 ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                    <td colspan="4"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
+                    <td colspan="4"><div class="research-answer">${renderMarkdown(e.body)}</div></td>
                    </tr>`
                 : '';
             return `<tr>
@@ -76,7 +76,7 @@ function renderJournalTab(type) {
                 : `<button class="btn btn-ghost" disabled title="No answer stored">No Answer</button>`;
             const answerRow = hasAnswer
                 ? `<tr class="research-answer-row" id="answer-${e.id}" style="display:none">
-                    <td colspan="3"><div class="research-answer"><p>${renderMarkdown(e.body)}</p></div></td>
+                    <td colspan="3"><div class="research-answer">${renderMarkdown(e.body)}${searchSuggestionsHtml(e.search_suggestions)}</div></td>
                    </tr>`
                 : '';
             return `<tr>
@@ -138,7 +138,7 @@ async function runResearch() {
         renderJournalTab('research');
         toast('Done');
     } catch (e) {
-        toast(isAiBusy(e) ? AI_BUSY_MSG : 'Search failed');
+        toast(errorMessage(e, 'Search failed'));
         console.error(e);
     } finally {
         btn.disabled = false;
@@ -251,7 +251,7 @@ async function uploadJournalPhoto(file) {
         renderPhotoTab();
         toast('Photo saved');
     } catch (e) {
-        toast('Upload failed');
+        toast(errorMessage(e, 'Upload failed'));
         console.error(e);
     } finally {
         btn.disabled = false;

@@ -38,7 +38,15 @@ export async function apiUpload(method, path, formData) {
 async function request(path, opts) {
     const res = await fetch(path, { credentials: 'same-origin', ...opts });
     if (res.status === 401) { showLogin(); throw new Error('Unauthorized'); }
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.json()).detail; } catch { /* non-JSON error body */ }
+        const err = new Error(`${res.status} ${detail}`);
+        err.status = res.status;
+        // FastAPI validation errors carry a list; only plain messages are user-facing
+        err.detail = typeof detail === 'string' ? detail : '';
+        throw err;
+    }
     if (res.status === 204) return null;
     return res.json();
 }
@@ -50,7 +58,8 @@ export function toast(msg) {
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(el._t);
-    el._t = setTimeout(() => el.classList.remove('show'), 2800);
+    // Longer messages (e.g. why a document can't be read) stay up long enough to read
+    el._t = setTimeout(() => el.classList.remove('show'), Math.max(2800, msg.length * 60));
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -70,20 +79,70 @@ export function aiLoadingHtml(text = 'Thinking') {
     return `<div class="ai-loading">${text}<div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
 }
 
-export function isAiBusy(error) {
-    return error && error.message && error.message.includes('502');
+// The server's reason when it gave one, otherwise the caller's fallback
+export function errorMessage(error, fallback) {
+    return (error && error.detail) || fallback;
 }
 
-export const AI_BUSY_MSG = 'Google AI is busy right now, give it a moment and try again';
+// Google's Search Suggestions for a grounded answer, isolated in a sandboxed frame:
+// no scripts, opaque origin, links open in a new tab
+export function searchSuggestionsHtml(html) {
+    if (!html) return '';
+    const doc = '<base target="_blank">' + html;
+    const attr = doc.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    return `<iframe class="search-suggestions" title="Google Search suggestions" `
+        + `sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc="${attr}"></iframe>`;
+}
 
+// Line-based subset of Markdown used in AI answers: paragraphs, # headings,
+// - and 1. lists, **bold**, *italic*, and https links. Input is HTML-escaped first.
 export function renderMarkdown(str) {
-    return escapeHtml(str)
+    const inline = text => escapeHtml(text)
+        .replace(/\[([^\]]+)\]\((https:\/\/[^\s)"]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.+?)\*/g, '<em>$1</em>')
-        .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')
-        .replace(/\n{2,}/g, '</p><p>')
-        .replace(/\n/g, '<br>')
-        .replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+        .replace(/\*(\S(?:.*?\S)?)\*/g, '<em>$1</em>');
+
+    const out = [];
+    let para = [];
+    let list = null;
+    const flushPara = () => {
+        if (para.length) out.push(`<p>${para.join('<br>')}</p>`);
+        para = [];
+    };
+    const closeList = () => {
+        if (list) out.push(`</${list}>`);
+        list = null;
+    };
+    const listItem = (type, text, start) => {
+        flushPara();
+        if (list !== type) {
+            closeList();
+            // Numbered items split by blank lines keep counting from their own number
+            out.push(type === 'ol' && start !== 1 ? `<ol start="${start}">` : `<${type}>`);
+            list = type;
+        }
+        out.push(`<li>${inline(text)}</li>`);
+    };
+
+    for (const line of String(str ?? '').split('\n')) {
+        let m;
+        if ((m = line.match(/^\s*[-*] (.+)/))) listItem('ul', m[1]);
+        else if ((m = line.match(/^\s*(\d+)[.)] (.+)/))) listItem('ol', m[2], parseInt(m[1], 10));
+        else if ((m = line.match(/^#{1,6} (.+)/))) {
+            flushPara();
+            closeList();
+            out.push(`<p><strong>${inline(m[1])}</strong></p>`);
+        } else if (!line.trim()) {
+            flushPara();
+            closeList();
+        } else {
+            closeList();
+            para.push(inline(line));
+        }
+    }
+    flushPara();
+    closeList();
+    return out.join('');
 }
 
 // ── Service worker ──────────────────────────────────────────────────────────

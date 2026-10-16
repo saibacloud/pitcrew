@@ -1353,16 +1353,21 @@ main {
     word-break: break-word;
 }
 
-.research-answer p {
+.research-answer p,
+.pin-research-result p {
     margin: 0 0 10px;
 }
 
-.research-answer p:last-child {
+.research-answer p:last-child,
+.pin-research-result p:last-child {
     margin-bottom: 0;
 }
 
-.research-answer ul {
-    margin: 6px 0;
+.research-answer ul,
+.research-answer ol,
+.pin-research-result ul,
+.pin-research-result ol {
+    margin: 6px 0 10px;
     padding-left: 20px;
 }
 
@@ -1692,7 +1697,6 @@ main {
     margin: 4px 0 8px 32px;
     font-size: 13px;
     line-height: 1.7;
-    white-space: pre-wrap;
     word-break: break-word;
     color: var(--text);
 }
@@ -1764,23 +1768,84 @@ main {
 
 .login-logo {
     font-size: 22px;
+    align-self: center;
 }
 
 .login-error {
     font-size: 13px;
     color: #e63946;
+    text-align: center;
 }
 
 .login-error[hidden] {
     display: none;
 }
 
-.login-submit {
-    width: 100%;
-    padding: 11px 18px;
+.login-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-align: center;
 }
 
-.login-submit:disabled {
+.login-pin {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 24px;
+    letter-spacing: 0.35em;
+    text-align: center;
+}
+
+.login-pin:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.pin-key {
+    height: 56px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 22px;
+    font-weight: 500;
+    touch-action: manipulation;
+}
+
+.pin-key:active {
+    background: var(--surface-2);
+}
+
+.pin-key-action {
+    font-size: 15px;
+    color: var(--muted);
+}
+
+.pin-key-submit {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+}
+
+.pin-key-submit:active {
+    background: var(--accent);
+    opacity: 0.85;
+}
+
+.pin-key-submit:disabled {
     opacity: 0.45;
     cursor: not-allowed;
 }
@@ -1804,4 +1869,20 @@ main {
 .lock-btn:hover {
     border-color: var(--accent);
     color: var(--text);
+}
+
+/* ── Google Search suggestions (required with grounded answers) ──────────── */
+
+.search-suggestions {
+    display: block;
+    width: 100%;
+    height: 64px;
+    margin-top: 10px;
+    border: 0;
+}
+
+.research-answer a,
+.pin-research-result a {
+    color: inherit;
+    text-decoration: underline;
 }

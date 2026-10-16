@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from backend.db import get_car, get_cars, create_car, update_car, soft_delete_car, update_car_photo
 from backend.services.gemini import compress_for_storage
+from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['cars'])
 
@@ -87,9 +88,7 @@ async def upload_car_photo(car_id: int, file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lower() if file.filename else '.jpg'
     if ext not in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
         raise HTTPException(400, 'Unsupported file type')
-    contents = await file.read()
-    if len(contents) > MAX_CAR_PHOTO_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_CAR_PHOTO_UPLOAD // (1024*1024)}MB)')
+    contents = await read_upload(file, MAX_CAR_PHOTO_UPLOAD)
     contents = compress_for_storage(contents)
     # Compressed images are saved in original format extension
     dest = os.path.join(UPLOADS_DIR, f'car_{car_id}{ext}')
