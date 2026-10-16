@@ -11,8 +11,8 @@ services:
     volumes:
       - pitcrew-data:/app/data
       - pitcrew-uploads:/app/static/uploads
-    expose:
-      - "8600"
+    ports:
+      - "192.168.20.253:8600:8600"
     restart: unless-stopped
 
 volumes:

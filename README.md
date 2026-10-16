@@ -50,7 +50,7 @@ uvicorn backend.app:app --reload
 docker compose up --build
 ```
 
-I personally deploy via Coolify, which pulls from Forgejo and builds the image straight from the `Dockerfile`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI, traffic is fronted by NPM, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
+I personally deploy via Coolify on Blip, which pulls from GitHub and builds from `docker-compose.yml`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI. The container port is published at Blip's LAN address `192.168.20.253:8600` for Nginx Proxy Manager on REM, which serves `https://pitcrew.local.saiba.cloud`, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
 The app serves on port 8600. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
 
@@ -77,7 +77,7 @@ Once inside a car, you've got five sections to work with:
 | Database | SQLite via aiosqlite, WAL mode, foreign keys on, soft deletes |
 | AI | `gemini-flash-latest` by default, override with `GEMINI_MODEL` (google-genai) with Google Search grounding |
 | Frontend | Vanilla JS with ES modules, no framework, no build step |
-| Deploy | Docker image built by Coolify from Forgejo, fronted by NPM |
+| Deploy | Docker image built by Coolify from GitHub, fronted by Nginx Proxy Manager |
 
 ## Project structure
 
