@@ -17,6 +17,6 @@ ENV PYTHONUNBUFFERED=1
 # Override in docker-compose / swarm service to point at the volume
 ENV PITCREW_DB_PATH=/app/data/pitcrew.db
 
-EXPOSE 8000
+EXPOSE 8600
 
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8600"]
