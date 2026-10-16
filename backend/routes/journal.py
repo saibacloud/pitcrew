@@ -10,11 +10,12 @@ from pydantic import BaseModel
 
 from backend.auth import rate_limit_ai
 from backend.db import (
-    get_car, get_journal, get_journals, count_journals,
+    get_car, get_journal, get_journals, count_journals, get_installed_parts,
     create_journal, update_journal, soft_delete_journal,
 )
 from backend.services import gemini
 from backend.services.gemini import compress_for_storage
+from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['journal'])
 
@@ -99,9 +100,7 @@ async def upload_journal_photo(
     ext = Path(file.filename).suffix.lower() if file.filename else '.jpg'
     if ext not in ('.jpg', '.jpeg', '.png', '.webp', '.gif'):
         raise HTTPException(400, 'Unsupported file type')
-    contents = await file.read()
-    if len(contents) > MAX_PHOTO_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_PHOTO_UPLOAD // (1024*1024)}MB)')
+    contents = await read_upload(file, MAX_PHOTO_UPLOAD)
     contents = compress_for_storage(contents)
     filename = f'journal_{car_id}_{int(time.time() * 1000)}{ext}'
     dest = os.path.join(UPLOADS_DIR, filename)
@@ -123,7 +122,7 @@ async def research(car_id: int, req: ResearchRequest):
     if not car:
         raise HTTPException(404, 'Car not found')
 
-    prompt = gemini.build_research_prompt(car, req.query)
+    prompt = gemini.build_research_prompt(car, req.query, await get_installed_parts(car_id))
     try:
         answer = await gemini.research(prompt)
     except Exception:
@@ -132,6 +131,7 @@ async def research(car_id: int, req: ResearchRequest):
     entry_id = await create_journal(car_id, {
         'type': 'research',
         'title': req.query,
-        'body': answer,
+        'body': answer.text,
+        'search_suggestions': answer.search_suggestions,
     })
     return await get_journal(entry_id)

@@ -1,11 +1,15 @@
 # Manual / Documents routes
 
 import asyncio
+import io
+import logging
 import os
-from pathlib import Path
+import re
 import time
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from PIL import Image
 from pydantic import BaseModel
 from google.genai import types
 
@@ -17,6 +21,9 @@ from backend.db import (
     VALID_MANUAL_CATEGORIES,
 )
 from backend.services import gemini
+from backend.uploads import save_upload
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix='/api', tags=['manuals'])
 
@@ -26,40 +33,105 @@ MANUALS_DIR = os.path.join(STATIC_DIR, 'uploads', 'manuals')
 MAX_MANUAL_UPLOAD = 100 * 1024 * 1024  # 100 MB
 
 ALLOWED_EXTENSIONS: dict = {
-    'manual':    {'.pdf', '.docx', '.doc'},
+    'manual':    {'.pdf', '.docx'},
     'reference': {'.jpg', '.jpeg', '.png', '.webp', '.gif', '.svg', '.bmp'},
     'other':     None,  # any
 }
 
-MIME_MAP = {
-    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-    '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp',
-    '.svg': 'image/svg+xml',
-}
+# Image formats Gemini accepts directly; other raster formats are converted to PNG
+GEMINI_IMAGE_MIME = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
+RASTER_TO_PNG = {'.gif', '.bmp'}
+
+PDF_PAGE_BUDGET = 300      # PDF pages sent whole per question, across all selected PDFs
+PDF_PICKED_PAGES = 30      # pages chosen by search from a PDF that does not fit the budget
+PDF_MAX_BYTES = 50 * 1024 * 1024  # Gemini's per-PDF limit
+FULL_TEXT_CHARS = 300_000  # DOCX/text files below this are sent whole
 
 
 # ── Document text extraction ────────────────────────────────────────────────
 
 def _extract_sidecar(filepath: str) -> None:
-    """Extract text from a PDF or DOCX and save as a .txt sidecar file."""
-    ext = Path(filepath).suffix.lower()
+    """Extract per-page PDF text into a .txt sidecar used to rank pages."""
+    from pypdf import PdfReader
+    reader = PdfReader(filepath)
+    pages = []
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text() or ''
+        if text.strip():
+            pages.append(f'[Page {i + 1}]\n{text}')
+    # Written whole then renamed, so a concurrent reader never sees a partial sidecar
+    tmp = filepath + '.txt.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        f.write('\n\n'.join(pages))
+    os.replace(tmp, filepath + '.txt')
+
+
+def _extract_sidecar_logged(filepath: str) -> None:
+    try:
+        _extract_sidecar(filepath)
+    except Exception:
+        log.exception("Text extraction failed for %s", filepath)
+
+
+def _sidecar_pages(filepath: str) -> dict[int, str]:
     sidecar = filepath + '.txt'
-    if ext == '.pdf':
-        from pypdf import PdfReader
-        reader = PdfReader(filepath)
-        pages = []
-        for i, page in enumerate(reader.pages):
-            text = page.extract_text() or ''
-            if text.strip():
-                pages.append(f'[Page {i + 1}]\n{text}')
-        with open(sidecar, 'w', encoding='utf-8') as f:
-            f.write('\n\n'.join(pages))
-    elif ext in ('.docx', '.doc'):
-        import docx as docx_lib
-        doc = docx_lib.Document(filepath)
-        text = '\n'.join(p.text for p in doc.paragraphs if p.text.strip())
-        with open(sidecar, 'w', encoding='utf-8') as f:
-            f.write(text)
+    if not os.path.exists(sidecar):
+        _extract_sidecar(filepath)
+    with open(sidecar, 'r', encoding='utf-8') as f:
+        parts = re.split(r'^\[Page (\d+)\]\n', f.read(), flags=re.M)
+    return {int(parts[i]): parts[i + 1] for i in range(1, len(parts) - 1, 2)}
+
+
+def _pdf_page_count(filepath: str) -> int:
+    from pypdf import PdfReader
+    return len(PdfReader(filepath).pages)
+
+
+def _pdf_subset(filepath: str, page_numbers: list[int]) -> bytes:
+    from pypdf import PdfReader, PdfWriter
+    reader = PdfReader(filepath)
+    writer = PdfWriter()
+    for n in page_numbers:
+        writer.add_page(reader.pages[n - 1])
+    buf = io.BytesIO()
+    writer.write(buf)
+    return buf.getvalue()
+
+
+def _pick_pages(pages: dict[int, str], question: str) -> list[int]:
+    """Best-matching pages plus the page after each top hit, since procedures run on."""
+    numbers = sorted(pages)
+    ranked = [numbers[i] for i in gemini.rank_passages([pages[n] for n in numbers], question)]
+    picked: set[int] = set()
+    for rank, n in enumerate(ranked):
+        if len(picked) >= PDF_PICKED_PAGES:
+            break
+        picked.add(n)
+        if rank < PDF_PICKED_PAGES // 3 and n + 1 in pages and len(picked) < PDF_PICKED_PAGES:
+            picked.add(n + 1)
+    # No match: the opening pages usually hold the contents and model coverage
+    return sorted(picked) or numbers[:PDF_PICKED_PAGES]
+
+
+def _docx_text(filepath: str) -> str:
+    """Paragraphs and tables in document order; spec and torque tables live in tables."""
+    import docx as docx_lib
+    lines = []
+    for block in docx_lib.Document(filepath).iter_inner_content():
+        if hasattr(block, 'rows'):
+            for row in block.rows:
+                lines.append(' | '.join(cell.text.strip() for cell in row.cells))
+        elif block.text.strip():
+            lines.append(block.text)
+    return '\n'.join(lines)
+
+
+def _text_excerpt(text: str, question: str) -> str:
+    if len(text) <= FULL_TEXT_CHARS:
+        return text
+    chunks = gemini.text_chunks(text)
+    ranked = gemini.rank_passages(chunks, question)[:12] or [0]
+    return '\n\n[...]\n\n'.join(chunks[i] for i in sorted(ranked))
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -73,7 +145,9 @@ async def list_manuals(car_id: int):
 
 
 @router.post('/cars/{car_id}/manuals', status_code=201)
-async def upload_manual(car_id: int, file: UploadFile = File(...), category: str = 'manual'):
+async def upload_manual(
+    car_id: int, background: BackgroundTasks, file: UploadFile = File(...), category: str = 'manual',
+):
     car = await get_car(car_id)
     if not car:
         raise HTTPException(404, 'Car not found')
@@ -85,19 +159,20 @@ async def upload_manual(car_id: int, file: UploadFile = File(...), category: str
     if allowed is not None and ext not in allowed:
         raise HTTPException(400, f'Unsupported file type for {category}. Allowed: {", ".join(sorted(allowed))}')
 
-    contents = await file.read()
-    if len(contents) > MAX_MANUAL_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_MANUAL_UPLOAD // (1024*1024)}MB)')
-
     safe_name = Path(file.filename).stem[:60] if file.filename else 'file'
     filename = f"car_{car_id}_{int(time.time())}_{safe_name}{ext}"
     dest = os.path.join(MANUALS_DIR, filename)
-    with open(dest, 'wb') as f:
-        f.write(contents)
+    await save_upload(file, dest, MAX_MANUAL_UPLOAD)
 
-    # Extract text sidecar in background thread (non-blocking)
-    if ext in ('.pdf', '.docx', '.doc'):
-        await asyncio.to_thread(_extract_sidecar, dest)
+    # Opening the PDF is quick even for large manuals; extracting its text is not, so that
+    # runs after the response and questions extract on demand if it hasn't finished
+    if ext == '.pdf':
+        try:
+            await asyncio.to_thread(_pdf_page_count, dest)
+        except Exception:
+            os.remove(dest)
+            raise HTTPException(400, 'Could not open this PDF - it may be damaged or password protected')
+        background.add_task(_extract_sidecar_logged, dest)
 
     file_path = f'/static/uploads/manuals/{filename}'
     title = Path(file.filename).stem if file.filename else filename
@@ -136,67 +211,81 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
 
     content_parts: list = []
     loaded: list[str] = []
+    page_budget = PDF_PAGE_BUDGET
 
     for mid in body.manual_ids:
         doc = await get_manual(mid)
-        if not doc:
+        if not doc or doc['car_id'] != car_id:
             continue
-        fp = doc.get('file_path', '')
-        relative = fp.removeprefix('/static/')
+        relative = doc.get('file_path', '').removeprefix('/static/')
         filepath = os.path.normpath(os.path.join(STATIC_DIR, relative))
-        if not filepath.startswith(os.path.normpath(STATIC_DIR)):
+        if not filepath.startswith(os.path.normpath(STATIC_DIR)) or not os.path.exists(filepath):
             continue
-        if not os.path.exists(filepath):
-            continue
+        title = doc['title']
         ext = Path(filepath).suffix.lower()
         try:
             if ext == '.pdf':
-                sidecar = filepath + '.txt'
-                if not os.path.exists(sidecar):
-                    try:
-                        await asyncio.to_thread(_extract_sidecar, filepath)
-                    except Exception as extract_err:
-                        raise HTTPException(502, f'Could not extract text from "{doc["title"]}". '
-                                                 f'It may be a scanned/image-only PDF.')
-                with open(sidecar, 'r', encoding='utf-8') as f:
-                    full_text = f.read().strip()
-                if not full_text:
-                    raise HTTPException(400, f'"{doc["title"]}" appears to be a scanned PDF with no '
-                                            f'extractable text. AI search requires a text-based PDF.')
-                chunks = gemini.relevant_chunks(full_text, body.question)
-                excerpt = '\n\n---\n\n'.join(chunks)
-                content_parts.append(types.Part.from_text(
-                    text=f'[Relevant excerpts from: {doc["title"]}]\n\n{excerpt}'
-                ))
-            elif ext in MIME_MAP:
-                with open(filepath, 'rb') as f:
-                    content_parts.append(types.Part.from_bytes(data=f.read(), mime_type=MIME_MAP[ext]))
-                content_parts.append(types.Part.from_text(text=f'[Above image: {doc["title"]}]'))
-            elif ext in ('.docx', '.doc'):
-                sidecar = filepath + '.txt'
-                if os.path.exists(sidecar):
-                    with open(sidecar, 'r', encoding='utf-8') as f:
-                        full_text = f.read()
+                page_count = await asyncio.to_thread(_pdf_page_count, filepath)
+                if page_count <= page_budget and os.path.getsize(filepath) <= PDF_MAX_BYTES:
+                    content_parts.append(types.Part.from_text(
+                        text=f'[Document: {title}, full PDF of {page_count} pages. '
+                             f'Cite pages by their position in this PDF.]'
+                    ))
+                    cache_key = f'{filepath}:{os.path.getmtime(filepath)}'
+                    content_parts.append(await gemini.pdf_file_part(filepath, cache_key))
+                    page_budget -= page_count
                 else:
-                    import docx as docx_lib
-                    document = docx_lib.Document(filepath)
-                    full_text = '\n'.join(p.text for p in document.paragraphs if p.text.strip())
-                chunks = gemini.relevant_chunks(full_text, body.question)
-                content_parts.append(types.Part.from_text(
-                    text=f'[Relevant excerpts from: {doc["title"]}]\n\n' + '\n\n---\n\n'.join(chunks)
+                    pages = await asyncio.to_thread(_sidecar_pages, filepath)
+                    if not pages:
+                        raise HTTPException(400, f'"{title}" is a scanned PDF of {page_count} pages, too long to '
+                                                 f'read whole. Split it into parts under {PDF_PAGE_BUDGET} pages.')
+                    picked = _pick_pages(pages, body.question)
+                    subset = await asyncio.to_thread(_pdf_subset, filepath, picked)
+                    # pypdf can carry shared images/fonts into a subset; past Gemini's
+                    # PDF limit the picked pages go as extracted text instead
+                    if len(subset) <= PDF_MAX_BYTES:
+                        content_parts.append(types.Part.from_text(
+                            text=f'[Document: {title}, selected pages only. In order, the pages of this PDF are '
+                                 f'original pages {", ".join(map(str, picked))}. Cite the original page numbers.]'
+                        ))
+                        content_parts.append(await gemini.pdf_bytes_part(subset))
+                    else:
+                        log.info("Subset of %s is %d bytes; sending page text", title, len(subset))
+                        content_parts.append(types.Part.from_text(
+                            text=f'[Document: {title}, extracted text of selected pages]\n\n'
+                                 + '\n\n'.join(f'[Page {n}]\n{pages[n]}' for n in picked if n in pages)
+                        ))
+                    page_budget = max(0, page_budget - len(picked))
+            elif ext in GEMINI_IMAGE_MIME or ext in RASTER_TO_PNG:
+                with open(filepath, 'rb') as f:
+                    data = f.read()
+                mime = GEMINI_IMAGE_MIME.get(ext, 'image/png')
+                if ext in RASTER_TO_PNG:
+                    buf = io.BytesIO()
+                    Image.open(io.BytesIO(data)).convert('RGB').save(buf, format='PNG')
+                    data = buf.getvalue()
+                content_parts.append(types.Part.from_text(text=f'[Document: {title}, image]'))
+                content_parts.append(types.Part.from_bytes(
+                    data=data, mime_type=mime,
+                    media_resolution=types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH,
                 ))
             else:
-                with open(filepath, 'r', errors='replace') as f:
-                    raw_text = f.read()
-                chunks = gemini.relevant_chunks(raw_text, body.question)
+                if ext == '.docx':
+                    text = await asyncio.to_thread(_docx_text, filepath)
+                else:
+                    with open(filepath, 'r', errors='replace') as f:
+                        text = f.read()
+                if not text.strip():
+                    continue
                 content_parts.append(types.Part.from_text(
-                    text=f'[File: {doc["title"]}]\n' + '\n---\n'.join(chunks)
+                    text=f'[Document: {title}, text without page numbers]\n\n{_text_excerpt(text, body.question)}'
                 ))
-            loaded.append(doc['title'])
+            loaded.append(title)
         except HTTPException:
             raise
         except Exception:
-            raise HTTPException(502, f'Error reading "{doc.get("title", "document")}"')
+            log.exception("Could not prepare document %s", mid)
+            raise HTTPException(502, f'Error reading "{title}"')
 
     if not content_parts:
         raise HTTPException(400, 'Could not read any of the selected documents')

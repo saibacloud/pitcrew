@@ -1,6 +1,6 @@
 // PitCrew — car view (info form, photo, section navigation)
 
-import { activeCar, setActiveCar, api, apiUpload, toast, carSpec } from './app.js';
+import { activeCar, setActiveCar, api, apiUpload, toast, carSpec, errorMessage } from './app.js';
 import { loadGarage } from './garage.js';
 import { loadJournal, resetJournal } from './journal.js';
 import { loadViews } from './pins.js';
@@ -117,7 +117,7 @@ async function handlePhotoUpload(event) {
         const data = await apiUpload('POST', `/api/cars/${activeCar.id}/photo`, formData);
         activeCar.photo_url = data.photo_url;
         toast('Photo saved');
-    } catch (e) { toast('Photo upload failed'); }
+    } catch (e) { toast(errorMessage(e, 'Photo upload failed')); }
 }
 
 async function deleteCarPhoto() {

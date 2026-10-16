@@ -10,11 +10,12 @@ from pydantic import BaseModel
 
 from backend.auth import rate_limit_ai
 from backend.db import (
-    get_car, get_view, get_views, create_view, soft_delete_view,
+    get_car, get_installed_parts, get_view, get_views, create_view, soft_delete_view,
     get_photopin, get_photopins, create_photopin, update_photopin, soft_delete_photopin,
     VALID_VIEW_ANGLES,
 )
 from backend.services import gemini
+from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['views', 'pins'])
 
@@ -50,9 +51,7 @@ async def upload_view(car_id: int, angle: str, file: UploadFile = File(...)):
     if ext not in ('.jpg', '.jpeg', '.png', '.webp'):
         raise HTTPException(400, 'Unsupported file type')
 
-    contents = await file.read()
-    if len(contents) > MAX_VIEW_UPLOAD:
-        raise HTTPException(400, f'File too large (max {MAX_VIEW_UPLOAD // (1024*1024)}MB)')
+    contents = await read_upload(file, MAX_VIEW_UPLOAD)
 
     # Compress for storage
     contents = gemini.compress_for_storage(contents)
@@ -125,15 +124,19 @@ async def research_pin(pin_id: int):
     with open(filepath, 'rb') as f:
         raw_bytes = f.read()
 
-    clean_bytes, mime_type = gemini.strip_exif(raw_bytes)
-    prompt_text = gemini.build_pin_research_prompt(car, pin, view.get('angle', ''))
+    images = gemini.pin_images(raw_bytes, pin.get('x_pct'), pin.get('y_pct'))
+    prompt_text = gemini.build_pin_research_prompt(
+        car, pin, view.get('angle', ''),
+        installed_parts=await get_installed_parts(car['id']),
+        has_marker=len(images) > 1,
+    )
 
     try:
-        summary = await gemini.research_with_image(prompt_text, clean_bytes, mime_type)
-        await update_photopin(pin_id, {'ai_summary': summary})
-        return {'summary': summary}
+        answer = await gemini.research_with_images(prompt_text, images)
     except Exception:
         raise HTTPException(502, 'AI research failed — try again shortly')
+    await update_photopin(pin_id, {'ai_summary': answer.text, 'search_suggestions': answer.search_suggestions})
+    return {'summary': answer.text, 'search_suggestions': answer.search_suggestions}
 
 
 @router.delete('/pins/{pin_id}', status_code=204)
