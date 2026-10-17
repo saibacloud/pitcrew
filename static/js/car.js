@@ -7,6 +7,8 @@ import { loadViews } from './pins.js';
 import { loadCartParts } from './cart.js';
 import { loadManuals } from './manuals.js';
 import { loadBuild } from './build.js';
+import { loadChat, resetChat } from './chat.js';
+import { loadInventory } from './inventory.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 export function showGarage() {
@@ -21,11 +23,14 @@ const loaders = {
     views: loadViews,
     cart: loadCartParts,
     manuals: loadManuals,
+    chat: loadChat,
+    inventory: loadInventory,
 };
 
 export function showCar(car) {
     setActiveCar(car);
     resetJournal();
+    resetChat();
     document.getElementById('view-garage').classList.remove('active');
     document.getElementById('view-car').classList.add('active');
     const spec = carSpec(car);

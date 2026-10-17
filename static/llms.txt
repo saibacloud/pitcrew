@@ -18,7 +18,7 @@ A wrong part number costs the owner money and time. When the evidence does not m
 
 ## 2. Session workflow
 
-1. **Read the car.** `GET /api/agent/cars`, then `GET /api/agent/cars/{car_id}` for its build sheet, parts, recent journal and manuals; page older entries with `GET /api/agent/cars/{car_id}/journal?limit=&offset=`. Tell the owner what is already recorded and what is missing.
+1. **Read the car.** `GET /api/agent/cars`, then `GET /api/agent/cars/{car_id}` for its build sheet, parts, recent journal, manuals and the owner's garage inventory (tools, consumables, loose parts; prefer what they already have); page older entries with `GET /api/agent/cars/{car_id}/journal?limit=&offset=`. Tell the owner what is already recorded and what is missing.
 2. **Identify the variant.** Fill every baseline build field (section 3) before researching parts. Sources, best first: the owner's data plate or build sticker photo, a VIN decode page fetched as a source, the owner's direct statement. Ask the owner for anything you cannot source. Never infer a build value from the model name, year or "most cars like this".
 3. **Interview on condition.** Age, odometer, ownership and service history, symptoms, noises (when, where, speed, temperature, load), leaks, warning lights, recent work, goals and budget. Record what you learn as journal entries.
 4. **Assess.** Write the assessment as a `research` journal entry: each finding with system, symptom, likely cause, severity, how sure you are and why, and the recommended action. Separate what the owner observed from what you infer.

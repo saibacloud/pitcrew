@@ -82,8 +82,19 @@ session), only its markup/CSS/JS by inspection.
 - `static/llms.txt` is the agent contract: keep it in step with `backend/routes/agent.py`.
 - Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
 
+## In-app chat and inventory
+
+- Chat (`backend/routes/chat.py`): logged threads (`chat_threads`, `chat_messages`). Every
+  answer is Gemini + Google Search with `CHAT_SYSTEM_INSTRUCTION` plus `car_contract()` rebuilt
+  from the DB per message (identity, VIN, colour, confirmed/pending build sheet, parts,
+  service log, inventory). Chat answers are research, never fitment evidence.
+- Inventory (`inventory`, garage-wide): a second Gemini call per message extracts adds/removes
+  from the owner's message and the previous answer, run in parallel with the answer.
+  `valid_changes` keeps only changes whose quote is the owner's verbatim words naming the item;
+  inferred items must also be named verbatim in the previous answer. Undo is soft delete/restore.
+- The Journal tab's Converse list holds agent session summaries (`type='converse'`).
+
 ## Known state
 
-- The Converse tab is still a stub (`/api/chat`). Deliberately deferred.
 - Login is a 6-12 digit PIN (`PITCREW_PIN_HASH`, replacing `PITCREW_CODE_HASH`).
   Sessions live in the `sessions` table and logout revokes them server-side.

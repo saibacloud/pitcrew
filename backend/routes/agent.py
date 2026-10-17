@@ -128,6 +128,7 @@ async def car_state(car_id: int, key: dict = Depends(require_agent)):
         'parts': await db.get_parts(car_id, limit=500),
         'journal': await db.get_journals(car_id, limit=30),
         'manuals': [{k: m[k] for k in ('id', 'title', 'category', 'tier', 'created_at')} for m in manuals],
+        'inventory': await db.get_inventory(),
     }
 
 

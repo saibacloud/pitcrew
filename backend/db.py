@@ -29,6 +29,7 @@ VALID_PART_SOURCES = {'owner', 'agent'}
 VALID_PART_ORIGINS = {'oem', 'oe_supplier', 'aftermarket'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
 VALID_MANUAL_TIERS = {'oem', 'catalogue', 'other'}
+VALID_INVENTORY_KINDS = {'tool', 'consumable', 'fluid', 'part', 'other'}
 VALID_VIEW_ANGLES = {'front', 'sideD', 'sideP', 'rear', 'engine', 'underside', 'interior'}
 
 # ── Schema ───────────────────────────────────────────────────────────────────
@@ -210,6 +211,41 @@ CREATE TABLE IF NOT EXISTS fitment_verifications (
     quote        TEXT NOT NULL,
     stale_at     TEXT,
     created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- In-app chat: one thread per conversation, messages in order
+CREATE TABLE IF NOT EXISTS chat_threads (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    car_id      INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL DEFAULT 'New chat',
+    deleted_at  TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    thread_id          INTEGER REFERENCES chat_threads(id) ON DELETE CASCADE,
+    role               TEXT NOT NULL CHECK(role IN ('user', 'model')),
+    body               TEXT NOT NULL,
+    search_suggestions TEXT,
+    created_at         TEXT DEFAULT (datetime('now'))
+);
+
+-- Garage-wide tools, consumables and loose parts the owner has. Chat-sourced items keep
+-- the message and quote they came from; removal is a soft delete.
+CREATE TABLE IF NOT EXISTS inventory (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    name               TEXT NOT NULL,
+    kind               TEXT NOT NULL DEFAULT 'other'
+                       CHECK(kind IN ('tool', 'consumable', 'fluid', 'part', 'other')),
+    detail             TEXT,
+    basis              TEXT NOT NULL DEFAULT 'owner' CHECK(basis IN ('owner', 'stated', 'inferred')),
+    quote              TEXT,
+    message_id         INTEGER REFERENCES chat_messages(id) ON DELETE SET NULL,
+    removed_message_id INTEGER REFERENCES chat_messages(id) ON DELETE SET NULL,
+    deleted_at         TEXT,
+    created_at         TEXT DEFAULT (datetime('now'))
 );
 
 -- Replay store for agent retries carrying an Idempotency-Key
@@ -532,6 +568,14 @@ async def count_journals(car_id: int) -> int:
         (car_id,)
     )
     return row['cnt'] if row else 0
+
+
+async def get_service_entries(car_id: int, limit: int = 10):
+    return await _fetchall(
+        f"SELECT title, odometer, created_at FROM journal WHERE car_id = ? AND type = 'service' "
+        f"AND {_LIVE_JOURNAL} ORDER BY created_at DESC LIMIT ?",
+        (car_id, limit)
+    )
 
 
 async def get_journal(journal_id: int):
@@ -1147,3 +1191,161 @@ async def store_idempotent(agent_key_id: int, idem_key: str, request_hash: str,
         "VALUES (?, ?, ?, ?, ?)",
         (agent_key_id, idem_key, request_hash, status_code, response)
     )
+
+
+# ── Chat ─────────────────────────────────────────────────────────────────────
+
+_LIVE_THREAD = "deleted_at IS NULL"
+
+
+async def get_threads(car_id: int):
+    return await _fetchall(
+        f"SELECT t.*, (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id = t.id) AS message_count "
+        f"FROM chat_threads t WHERE car_id = ? AND {_LIVE_THREAD} ORDER BY updated_at DESC, id DESC",
+        (car_id,)
+    )
+
+
+async def get_thread(thread_id: int):
+    return await _fetchone(f"SELECT * FROM chat_threads WHERE id = ? AND {_LIVE_THREAD}", (thread_id,))
+
+
+async def create_thread(car_id: int) -> int:
+    return await _insert("INSERT INTO chat_threads (car_id) VALUES (?)", (car_id,))
+
+
+async def soft_delete_thread(thread_id: int) -> int:
+    return await _execute(
+        f"UPDATE chat_threads SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_THREAD}", (thread_id,)
+    )
+
+
+async def get_messages(thread_id: int, limit: Optional[int] = None):
+    rows = await _fetchall(
+        "SELECT * FROM chat_messages WHERE thread_id = ? ORDER BY id DESC" + (" LIMIT ?" if limit else ""),
+        (thread_id, limit) if limit else (thread_id,)
+    )
+    return rows[::-1]
+
+
+async def add_exchange(thread_id: int, user_text: str, model_text: str,
+                       search_suggestions: Optional[str]) -> tuple[int, int]:
+    """Store a question and its answer together, so a failed AI call leaves no orphan question."""
+    async with transaction() as db:
+        cur = await db.execute(
+            "INSERT INTO chat_messages (thread_id, role, body) VALUES (?, 'user', ?)", (thread_id, user_text)
+        )
+        user_id = cur.lastrowid
+        cur = await db.execute(
+            "INSERT INTO chat_messages (thread_id, role, body, search_suggestions) VALUES (?, 'model', ?, ?)",
+            (thread_id, model_text, search_suggestions)
+        )
+        await db.execute(
+            "UPDATE chat_threads SET updated_at = datetime('now'), title = CASE WHEN title = 'New chat' "
+            "THEN ? ELSE title END WHERE id = ?",
+            (_thread_title(user_text), thread_id)
+        )
+        return user_id, cur.lastrowid
+
+
+def _thread_title(text: str) -> str:
+    text = ' '.join(text.split())
+    return text if len(text) <= 60 else text[:57].rstrip() + '...'
+
+
+# ── Inventory ────────────────────────────────────────────────────────────────
+
+_LIVE_ITEM = "deleted_at IS NULL"
+_ITEM_FIELDS = ('name', 'kind', 'detail')
+
+
+def _item_key(name: str, detail: Optional[str]) -> str:
+    return ' '.join(f'{name} {detail or ""}'.casefold().split())
+
+
+async def get_inventory():
+    return await _fetchall(f"SELECT * FROM inventory WHERE {_LIVE_ITEM} ORDER BY kind, name")
+
+
+async def get_inventory_item(item_id: int):
+    return await _fetchone(f"SELECT * FROM inventory WHERE id = ? AND {_LIVE_ITEM}", (item_id,))
+
+
+async def get_message_inventory(message_ids: list[int]) -> list[dict]:
+    """Items each message added or removed, for showing under the chat."""
+    if not message_ids:
+        return []
+    marks = ', '.join('?' for _ in message_ids)
+    return await _fetchall(
+        f"SELECT * FROM inventory WHERE message_id IN ({marks}) OR removed_message_id IN ({marks})",
+        tuple(message_ids) * 2
+    )
+
+
+async def create_inventory_item(data: dict) -> int:
+    if data.get('kind', 'other') not in VALID_INVENTORY_KINDS:
+        raise ValueError(f"Invalid inventory kind: {data.get('kind')}")
+    return await _insert(
+        "INSERT INTO inventory (name, kind, detail, basis, quote, message_id) VALUES (?, ?, ?, ?, ?, ?)",
+        (data['name'], data.get('kind', 'other'), data.get('detail'), data.get('basis', 'owner'),
+         data.get('quote'), data.get('message_id'))
+    )
+
+
+async def update_inventory_item(item_id: int, data: dict) -> int:
+    fields = {k: v for k, v in data.items() if k in _ITEM_FIELDS}
+    if not fields:
+        return 0
+    if 'kind' in fields and fields['kind'] not in VALID_INVENTORY_KINDS:
+        raise ValueError(f"Invalid inventory kind: {fields['kind']}")
+    set_clause = ', '.join(f"{k} = ?" for k in fields)
+    return await _execute(
+        f"UPDATE inventory SET {set_clause} WHERE id = ? AND {_LIVE_ITEM}", (*fields.values(), item_id)
+    )
+
+
+async def restore_inventory_item(item_id: int) -> int:
+    return await _execute(
+        "UPDATE inventory SET deleted_at = NULL, removed_message_id = NULL WHERE id = ? AND deleted_at IS NOT NULL",
+        (item_id,)
+    )
+
+
+async def soft_delete_inventory_item(item_id: int, removed_message_id: Optional[int] = None) -> int:
+    return await _execute(
+        f"UPDATE inventory SET deleted_at = datetime('now'), removed_message_id = ? WHERE id = ? AND {_LIVE_ITEM}",
+        (removed_message_id, item_id)
+    )
+
+
+async def apply_inventory_changes(message_id: int, changes: list[dict]) -> list[dict]:
+    """Add or remove extracted items. Adds that duplicate a held item, and removals that match
+    no item or several, are skipped."""
+    applied = []
+    async with transaction() as db:
+        live = await get_inventory()
+        for c in changes:
+            key = _item_key(c['name'], c.get('detail'))
+            if c['action'] == 'add':
+                if any(_item_key(r['name'], r['detail']) == key for r in live):
+                    continue
+                cur = await db.execute(
+                    "INSERT INTO inventory (name, kind, detail, basis, quote, message_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (c['name'], c['kind'], c.get('detail'), c['basis'], c['quote'], message_id)
+                )
+                live.append({'id': cur.lastrowid, 'name': c['name'], 'detail': c.get('detail')})
+                applied.append({'action': 'add', 'inventory_id': cur.lastrowid, **c})
+            else:
+                # "Out of brake cleaner" names no size or brand, so match on name alone when unambiguous
+                matches = [r for r in live if _item_key(r['name'], r['detail']) == key] or \
+                    ([r for r in live if _item_key(r['name'], None) == _item_key(c['name'], None)]
+                     if not c.get('detail') else [])
+                if len(matches) != 1:
+                    continue
+                await db.execute(
+                    "UPDATE inventory SET deleted_at = datetime('now'), removed_message_id = ? WHERE id = ?",
+                    (message_id, matches[0]['id'])
+                )
+                live.remove(matches[0])
+                applied.append({'action': 'remove', 'inventory_id': matches[0]['id'], **c})
+    return applied

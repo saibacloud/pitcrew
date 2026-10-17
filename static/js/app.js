@@ -7,6 +7,8 @@ import { initJournal } from './journal.js';
 import { initPins } from './pins.js';
 import { initCart } from './cart.js';
 import { initManuals } from './manuals.js';
+import { initChat } from './chat.js';
+import { initInventory } from './inventory.js';
 import { initDialogs } from './dialogs.js';
 import { initLogin, showLogin } from './login.js';
 
@@ -189,6 +191,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initPins();
     initCart();
     initManuals();
+    initChat();
+    initInventory();
     initLogin(enterApp);
     document.getElementById('lock-btn').addEventListener('click', lock);
 

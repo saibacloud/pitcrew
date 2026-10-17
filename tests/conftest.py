@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from backend import db  # noqa: E402
 from backend.app import app  # noqa: E402
-from backend.auth import require_session  # noqa: E402
+from backend.auth import rate_limit_ai, require_session  # noqa: E402
 
 
 @pytest.fixture
@@ -19,6 +19,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(db, '_db', None)
     monkeypatch.setattr(db, '_write_lock', asyncio.Lock())
     app.dependency_overrides[require_session] = lambda: None
+    app.dependency_overrides[rate_limit_ai] = lambda: None
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

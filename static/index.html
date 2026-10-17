@@ -85,6 +85,12 @@
                 <div class="car-nav-item" data-section="section-journal" data-load="journal">
                     <span class="nav-label">Journal</span>
                 </div>
+                <div class="car-nav-item" data-section="section-chat" data-load="chat">
+                    <span class="nav-label">Chat</span>
+                </div>
+                <div class="car-nav-item" data-section="section-inventory" data-load="inventory">
+                    <span class="nav-label">Inventory</span>
+                </div>
                 <div class="car-nav-item" data-section="section-pins" data-load="views">
                     <span class="nav-label">Photo Pins</span>
                 </div>
@@ -243,6 +249,33 @@
                             <tbody id="docsearch-tbody"></tbody>
                         </table>
                     </div>
+                </div>
+
+                <!-- CHAT -->
+                <div class="car-section" id="section-chat">
+                    <div class="car-section-heading">Chat</div>
+                    <div class="chat-bar">
+                        <select id="chat-thread-select" aria-label="Chat"></select>
+                        <button class="btn btn-ghost" id="chat-new-btn">New chat</button>
+                        <button class="btn btn-ghost" id="chat-delete-btn">Delete</button>
+                    </div>
+                    <div class="chat-messages" id="chat-messages"></div>
+                    <form class="chat-composer" id="chat-form">
+                        <textarea id="chat-input" rows="2" maxlength="4000" aria-label="Message"></textarea>
+                        <button type="submit" class="btn btn-primary" id="chat-send-btn">Send</button>
+                    </form>
+                </div>
+
+                <!-- INVENTORY -->
+                <div class="car-section" id="section-inventory">
+                    <div class="car-section-heading">Inventory</div>
+                    <form class="inv-form" id="inv-form">
+                        <input type="text" id="inv-name" maxlength="80" placeholder="Name" aria-label="Name" required />
+                        <select id="inv-kind" aria-label="Kind"></select>
+                        <input type="text" id="inv-detail" maxlength="60" placeholder="Detail" aria-label="Detail" />
+                        <button type="submit" class="btn btn-primary">Add</button>
+                    </form>
+                    <div id="inv-list"></div>
                 </div>
 
                 <!-- PHOTO PINS -->
