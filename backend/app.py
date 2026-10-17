@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from backend.auth import require_session
-from backend.db import init_db, close_db, regate_all
+from backend.db import init_db, close_db
 from backend.routes.auth import router as auth_router
 from backend.routes.cars import router as cars_router
 from backend.routes.journal import router as journal_router
@@ -48,8 +48,6 @@ os.makedirs(os.path.join(UPLOADS_DIR, 'views'), exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    # Catalogue domains come from the environment, so re-tier existing evidence on each start
-    await regate_all()
     log.info("PitCrew started")
     yield
     await close_db()

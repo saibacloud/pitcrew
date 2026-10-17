@@ -276,8 +276,10 @@ def gate(claim: dict, build: dict, evidence: Optional[dict], verification: Optio
 
     claim:        {part_number, claimed, agent_id, depends_on: [field], applies_when: [predicate]}
     build:        decoded build sheet, field -> value (unset fields absent or None)
-    evidence:     {kind: web_page|manual_page, tier, excerpt, extracted_by: text|ocr, url} (bound excerpt)
-    verification: {verdict: explicit_fit|ambiguous|no_fit, quote, agent_id} from a blind second agent;
+    evidence:     {kind: web_page|manual_page, tier, excerpt, extracted_by: text|ocr, url} (bound excerpt;
+                  tier is the capturing agent's rating of the source)
+    verification: {verdict: explicit_fit|ambiguous|no_fit, source_ok, quote, agent_id} from a blind
+                  second agent, who also judges the source itself;
                   the caller passes the most cautious live verdict
     """
     level, reasons, open_fields, no_fit = 'verified', [], [], []
@@ -345,6 +347,8 @@ def gate(claim: dict, build: dict, evidence: Optional[dict], verification: Optio
         cap('conditional', 'verification must come from a different agent')
     elif verification.get('verdict') == 'no_fit':
         cap('unverified', 'independent verification found no fit')
+    elif verification.get('source_ok') is not True:
+        cap('unverified', 'independent verifier did not accept the source as authoritative')
     elif verification.get('verdict') != 'explicit_fit':
         cap('conditional', 'independent verification was not conclusive')
     elif not quote_in_text(verification.get('quote') or '', excerpt):

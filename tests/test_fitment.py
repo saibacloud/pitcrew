@@ -29,7 +29,8 @@ def evidence(**kw):
     return {'kind': 'web_page', 'tier': 'catalogue', 'excerpt': EXCERPT, 'extracted_by': 'text', **kw}
 
 
-VERIFY = {'verdict': 'explicit_fit', 'quote': 'E46 330Ci Coupe M54 from 03/2003', 'agent_id': 'verifier-1'}
+VERIFY = {'verdict': 'explicit_fit', 'source_ok': True, 'quote': 'E46 330Ci Coupe M54 from 03/2003',
+          'agent_id': 'verifier-1'}
 
 
 def test_all_conditions_met_is_verified():
@@ -111,6 +112,7 @@ def test_has_absent_option_is_no_fit():
     ({**VERIFY, 'verdict': 'ambiguous'}, 'conditional'),
     ({**VERIFY, 'verdict': 'no_fit'}, 'unverified'),
     ({**VERIFY, 'quote': 'made up text'}, 'conditional'),
+    ({**VERIFY, 'source_ok': False}, 'unverified'),          # verifier rejects the source itself
 ])
 def test_verification_rules(verification, expected):
     assert gate(claim(), FULL_BUILD, evidence(), verification).level == expected

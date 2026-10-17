@@ -1,6 +1,6 @@
 import pytest
 
-from backend import db, fetch
+from backend import db
 from backend.agent_keys import hash_token
 from backend.fetch import Page, FetchError, _check_target, html_to_text
 from backend.routes import agent as agent_routes
@@ -30,7 +30,6 @@ def agents(client, run, monkeypatch):
     async def fake_fetch(url):
         return Page('https://parts.example.com/e46/brakes', 'parts.example.com', 'Front brake', PAGE_TEXT)
     monkeypatch.setattr(agent_routes, 'fetch_page', fake_fetch)
-    monkeypatch.setattr(fetch, 'CATALOGUE_DOMAINS', {'example.com'})
     return tokens
 
 
@@ -42,9 +41,12 @@ def car(client):
     return car_id
 
 
-def add_source(client, agents, car):
-    r = client.post(f'/api/agent/cars/{car}/sources', json={'url': 'https://parts.example.com/x'},
-                    headers=agents['mech'])
+RATING = {'tier': 'catalogue', 'tier_reason': 'BMW parts catalogue diagram filtered to this model'}
+
+
+def add_source(client, agents, car, **rating):
+    r = client.post(f'/api/agent/cars/{car}/sources',
+                    json={'url': 'https://parts.example.com/x', **RATING, **rating}, headers=agents['mech'])
     assert r.status_code == 201, r.text
     return r.json()['id']
 
@@ -103,10 +105,11 @@ def test_build_change_makes_verification_stale(client, agents, car):
     assert r.json()['part']['needs_recheck'] == 0
 
 
-def verify(client, headers, pid, verdict, quote):
+def verify(client, headers, pid, verdict, quote, source_authoritative=True):
     packet = client.get(f'/api/agent/parts/{pid}/verification-packet', headers=headers).json()
     return client.post(f'/api/agent/parts/{pid}/verifications',
-                       json={'claim_id': packet['claim_id'], 'verdict': verdict, 'quote': quote}, headers=headers)
+                       json={'claim_id': packet['claim_id'], 'verdict': verdict, 'quote': quote,
+                             'source_authoritative': source_authoritative}, headers=headers)
 
 
 def db_part(client, car, pid):
@@ -183,17 +186,58 @@ def test_catalogue_build_value_needs_a_quote_from_the_source(client, agents, car
     assert row['source'] == 'catalogue' and row['confirmed'] is False
 
 
-def test_manual_page_source_takes_the_owner_set_tier(client, run, agents, car, monkeypatch):
-    mid = run(db.create_manual, car, 'Parts catalogue', '/static/uploads/manuals/x.pdf')
-    assert client.patch(f'/api/manuals/{mid}', json={'tier': 'oem'}).json()['tier'] == 'oem'
+def test_manual_page_source_is_rated_by_the_agent(client, run, agents, car, monkeypatch):
+    mid = run(db.create_manual, car, 'Workshop manual', '/static/uploads/manuals/x.pdf')
 
     async def pages(manual):
         return {147: ROW}
     monkeypatch.setattr(agent_routes, '_manual_pages', pages)
-    r = client.post(f'/api/agent/cars/{car}/sources', json={'manual_id': mid, 'page': 147}, headers=agents['mech'])
+    body = {'manual_id': mid, 'page': 147, 'tier': 'oem', 'tier_reason': 'BMW factory workshop manual, E46 edition'}
+    r = client.post(f'/api/agent/cars/{car}/sources', json=body, headers=agents['mech'])
     assert r.status_code == 201 and r.json()['tier'] == 'oem'
-    r = client.post(f'/api/agent/cars/{car}/sources', json={'manual_id': mid, 'page': 9}, headers=agents['mech'])
-    assert r.status_code == 422
+    assert client.post(f'/api/agent/cars/{car}/sources', json={**body, 'page': 9},
+                       headers=agents['mech']).status_code == 422
+
+
+def test_source_needs_a_rating_and_reason(client, agents, car):
+    url = f'/api/agent/cars/{car}/sources'
+    assert client.post(url, json={'url': 'https://parts.example.com/x'}, headers=agents['mech']).status_code == 422
+    assert client.post(url, json={'url': 'https://parts.example.com/x', 'tier': 'catalogue', 'tier_reason': 'ok'},
+                       headers=agents['mech']).status_code == 422
+
+
+def test_other_rated_source_cannot_verify(client, agents, car):
+    sid = add_source(client, agents, car, tier='other', tier_reason='Supplier listing, not a catalogue')
+    pid = add_part(client, agents, car, sid).json()['part']['id']
+    assert verify(client, agents['verifier'], pid, 'explicit_fit', 'from 03/2003').json()['gate']['level'] == 'unverified'
+
+
+def test_verifier_must_accept_the_source(client, agents, car):
+    sid = add_source(client, agents, car)
+    pid = add_part(client, agents, car, sid).json()['part']['id']
+    r = verify(client, agents['verifier'], pid, 'explicit_fit', 'from 03/2003', source_authoritative=False)
+    assert r.json()['gate']['level'] == 'unverified'
+
+
+def test_verifier_does_not_see_the_claimants_rating(client, agents, car):
+    sid = add_source(client, agents, car)
+    pid = add_part(client, agents, car, sid).json()['part']['id']
+    packet = client.get(f'/api/agent/parts/{pid}/verification-packet', headers=agents['verifier']).json()
+    assert 'tier' not in packet['source'] and 'tier_reason' not in packet['source']
+    theirs = client.get(f'/api/agent/sources/{sid}', headers=agents['verifier']).json()
+    mine = client.get(f'/api/agent/sources/{sid}', headers=agents['mech']).json()
+    assert 'tier' not in theirs and mine['tier'] == 'catalogue'
+
+
+def test_capturing_agent_can_downgrade_its_rating(client, agents, car):
+    sid = add_source(client, agents, car)
+    pid = add_part(client, agents, car, sid).json()['part']['id']
+    verify(client, agents['verifier'], pid, 'explicit_fit', 'from 03/2003')
+    downgrade = {'tier': 'other', 'tier_reason': 'Turned out to be a reseller copy'}
+    assert client.patch(f'/api/agent/sources/{sid}', json=downgrade, headers=agents['verifier']).status_code == 409
+    r = client.patch(f'/api/agent/sources/{sid}', json=downgrade, headers=agents['mech'])
+    assert r.status_code == 200 and r.json()['tier'] == 'other'
+    assert db_part(client, car, pid)['confidence'] == 'unverified'
 
 
 def test_journal_entry_records_agent_and_sources(client, agents, car):
@@ -264,8 +308,8 @@ def test_verification_is_bound_to_the_claim_read(client, agents, car):
                                  'after': []}
     client.post(f'/api/agent/parts/{pid}/claims', json={**CLAIM, 'source_id': sid}, headers=agents['mech'])
     r = client.post(f'/api/agent/parts/{pid}/verifications',
-                    json={'claim_id': packet['claim_id'], 'verdict': 'explicit_fit', 'quote': 'from 03/2003'},
-                    headers=agents['verifier'])
+                    json={'claim_id': packet['claim_id'], 'verdict': 'explicit_fit', 'quote': 'from 03/2003',
+                          'source_authoritative': True}, headers=agents['verifier'])
     assert r.status_code == 409
 
 
@@ -306,21 +350,6 @@ def test_page_echoing_its_url_cannot_verify(client, agents, car, monkeypatch):
     pid = add_part(client, agents, car, sid, excerpt=row).json()['part']['id']
     r = verify(client, agents['verifier'], pid, 'explicit_fit', 'from 03/2003')
     assert r.json()['gate']['level'] == 'unverified'
-
-
-def test_lowering_a_manual_tier_regates_its_parts(client, run, agents, car, monkeypatch):
-    mid = run(db.create_manual, car, 'Parts catalogue', '/static/uploads/manuals/x.pdf')
-    client.patch(f'/api/manuals/{mid}', json={'tier': 'oem'})
-
-    async def pages(manual):
-        return {147: ROW}
-    monkeypatch.setattr(agent_routes, '_manual_pages', pages)
-    sid = client.post(f'/api/agent/cars/{car}/sources', json={'manual_id': mid, 'page': 147},
-                      headers=agents['mech']).json()['id']
-    pid = add_part(client, agents, car, sid).json()['part']['id']
-    assert verify(client, agents['verifier'], pid, 'explicit_fit', 'from 03/2003').json()['gate']['level'] == 'verified'
-    client.patch(f'/api/manuals/{mid}', json={'tier': 'other'})
-    assert db_part(client, car, pid)['confidence'] == 'unverified'
 
 
 def test_hidden_html_text_is_dropped():

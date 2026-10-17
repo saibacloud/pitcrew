@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from backend import db, fitment
 from backend.agent_keys import require_agent
-from backend.fetch import FetchError, domain_tier, fetch_page
+from backend.fetch import FetchError, fetch_page
 from backend.routes.build import build_sheet
 from backend.routes.manuals import STATIC_DIR, _sidecar_pages
 from backend.services.gemini import rank_passages
@@ -127,7 +127,7 @@ async def car_state(car_id: int, key: dict = Depends(require_agent)):
         'build': await build_sheet(car_id),
         'parts': await db.get_parts(car_id, limit=500),
         'journal': await db.get_journals(car_id, limit=30),
-        'manuals': [{k: m[k] for k in ('id', 'title', 'category', 'tier', 'created_at')} for m in manuals],
+        'manuals': [{k: m[k] for k in ('id', 'title', 'category', 'created_at')} for m in manuals],
         'inventory': await db.get_inventory(),
     }
 
@@ -149,8 +149,16 @@ async def search_manual(manual_id: int, q: str = Query(..., min_length=2, max_le
     pages = await _manual_pages(manual)
     numbers = sorted(pages)
     ranked = [numbers[i] for i in rank_passages([pages[n] for n in numbers], q)][:limit]
-    return {'manual_id': manual_id, 'tier': manual['tier'],
+    return {'manual_id': manual_id,
             'pages': [{'page': n, 'text': pages[n]} for n in ranked]}
+
+
+def _source_meta(source: dict, key: dict) -> dict:
+    fields = ('id', 'car_id', 'kind', 'url', 'domain', 'title', 'extracted_by', 'manual_id', 'page', 'fetched_at')
+    # Only the capturing agent sees its own rating, so a verifier judges the source unprompted
+    if source['agent_key_id'] == key['id']:
+        fields += ('tier', 'tier_reason')
+    return {k: source[k] for k in fields}
 
 
 @router.get('/sources/{source_id}')
@@ -161,8 +169,7 @@ async def read_source(source_id: int, find: Optional[str] = Query(None, max_leng
     source = await db.get_source(source_id)
     if not source:
         raise HTTPException(404, 'Source not found')
-    meta = {k: source[k] for k in ('id', 'car_id', 'kind', 'url', 'domain', 'title', 'tier',
-                                    'extracted_by', 'manual_id', 'page', 'fetched_at')}
+    meta = _source_meta(source, key)
     text = source['content']
     if find:
         hits = []
@@ -209,6 +216,9 @@ class SourceBody(BaseModel):
     url: Optional[str] = Field(None, max_length=2000)
     manual_id: Optional[int] = None
     page: Optional[int] = Field(None, ge=1)
+    # Your rating of the source's authority, and why; a blind verifier must agree before it verifies
+    tier: Literal['catalogue', 'oem', 'other']
+    tier_reason: str = Field(..., min_length=10, max_length=500)
 
 
 @router.post('/cars/{car_id}/sources', status_code=201)
@@ -225,7 +235,8 @@ async def add_source(car_id: int, body: SourceBody, key: dict = Depends(require_
             except FetchError as e:
                 raise HTTPException(422, f'Fetch failed: {e}')
             data = {'kind': 'web_page', 'url': page.url, 'domain': page.domain, 'title': page.title,
-                    'tier': domain_tier(page.domain), 'extracted_by': 'text', 'content': page.text}
+                    'tier': body.tier, 'tier_reason': body.tier_reason, 'extracted_by': 'text',
+                    'content': page.text}
         else:
             manual = await db.get_manual(body.manual_id)
             if not manual or manual['car_id'] != car_id:
@@ -236,7 +247,8 @@ async def add_source(car_id: int, body: SourceBody, key: dict = Depends(require_
             if body.page not in pages:
                 raise HTTPException(422, f'Page {body.page} has no text layer')
             data = {'kind': 'manual_page', 'title': f'{manual["title"]}, p. {body.page}',
-                    'tier': manual['tier'], 'extracted_by': 'text', 'manual_id': manual['id'],
+                    'tier': body.tier, 'tier_reason': body.tier_reason, 'extracted_by': 'text',
+                    'manual_id': manual['id'],
                     'page': body.page, 'content': pages[body.page]}
         data['content'] = data['content'][:MAX_SOURCE_TEXT]
         data['content_sha256'] = hashlib.sha256(data['content'].encode()).hexdigest()
@@ -245,6 +257,20 @@ async def add_source(car_id: int, body: SourceBody, key: dict = Depends(require_
                      'tier': data['tier'], 'length': len(data['content'])}
 
     return await _idempotent(key, idempotency_key, {'car': car_id, **body.model_dump()}, run)
+
+
+class SourceAssessment(BaseModel):
+    tier: Literal['catalogue', 'oem', 'other']
+    tier_reason: str = Field(..., min_length=10, max_length=500)
+
+
+@router.patch('/sources/{source_id}')
+async def reassess_source(source_id: int, body: SourceAssessment, key: dict = Depends(require_agent)):
+    try:
+        await db.reassess_source(source_id, key['id'], body.tier, body.tier_reason)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return _source_meta(await db.get_source(source_id), key)
 
 
 class AgentBuildValue(BaseModel):
@@ -261,7 +287,7 @@ async def write_build(car_id: int, field: str, body: AgentBuildValue, key: dict 
         if body.source_id is None or not body.quote:
             raise HTTPException(400, f'{body.source} values need source_id and the quote they are read from')
         source = await _car_source(car_id, body.source_id)
-        if await db._current_tier(source) not in VERIFYING_TIERS:
+        if source['tier'] not in VERIFYING_TIERS:
             raise HTTPException(400, f'{body.source} values need a catalogue or OEM source')
         if not fitment.quote_in_text(body.quote, source['content']):
             raise HTTPException(400, 'quote not found in the source text')
@@ -378,6 +404,7 @@ async def replace_claim(part_id: int, body: ClaimBody, key: dict = Depends(requi
 class VerificationBody(BaseModel):
     claim_id: int
     verdict: Literal['explicit_fit', 'ambiguous', 'no_fit']
+    source_authoritative: bool
     quote: str = Field(..., min_length=1, max_length=MAX_EXCERPT)
 
 
@@ -388,7 +415,8 @@ async def verify_part(part_id: int, body: VerificationBody, key: dict = Depends(
 
     async def run():
         try:
-            result = await db.add_verification(part_id, body.claim_id, key['id'], body.verdict, body.quote)
+            result = await db.add_verification(part_id, body.claim_id, key['id'], body.verdict,
+                                               body.source_authoritative, body.quote)
         except ValueError as e:
             raise HTTPException(409, str(e))
         return 201, await _part_response(part_id, result)

@@ -7,14 +7,6 @@ import { addSavedEntry } from './journal.js';
 let manuals = [];
 let selectedManualIds = new Set();
 
-const TIERS = [['oem', 'OEM'], ['catalogue', 'Catalogue'], ['other', 'Other']];
-
-function tierSelect(m) {
-    const tier = m.tier || 'other';
-    const opts = TIERS.map(([v, label]) => `<option value="${v}"${v === tier ? ' selected' : ''}>${label}</option>`).join('');
-    return `<select class="status-select manual-card-tier" aria-label="Source" data-action="set-tier" data-id="${m.id}">${opts}</select>`;
-}
-
 export async function loadManuals() {
     if (!activeCar) return;
     selectedManualIds = new Set();
@@ -50,7 +42,6 @@ function renderManualGrid(category) {
             </label>
             <div class="manual-card-title">${escapeHtml(m.title)}</div>
             <div class="manual-card-date">${date}</div>
-            ${tierSelect(m)}
         `;
         card.addEventListener('click', e => {
             if (e.target.closest('[data-action]')) return;
@@ -113,18 +104,6 @@ async function deleteManual(id) {
         updateDocAskBtn();
         toast('File removed');
     } catch (e) { toast('Error removing file'); }
-}
-
-async function setManualTier(select) {
-    const id = parseInt(select.dataset.id);
-    const i = manuals.findIndex(m => m.id === id);
-    if (i < 0) return;
-    try {
-        manuals[i] = await api('PATCH', `/api/manuals/${id}`, { tier: select.value });
-    } catch (e) {
-        select.value = manuals[i].tier || 'other';
-        toast(errorMessage(e, 'Error updating source'));
-    }
 }
 
 async function askDocuments() {
@@ -210,10 +189,5 @@ export function initManuals() {
         const id = parseInt(target.dataset.id);
         if (action === 'delete-manual') deleteManual(id);
         if (action === 'toggle-manual-select') toggleManualSelect(id);
-    });
-
-    document.getElementById('section-manual').addEventListener('change', e => {
-        const target = e.target.closest('[data-action="set-tier"]');
-        if (target) setManualTier(target);
     });
 }

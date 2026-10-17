@@ -77,8 +77,10 @@ session), only its markup/CSS/JS by inspection.
   confidence-bearing LLM calls; the in-app chat / Doc search (Gemini) is lookup only.
 - Agents write gated parts via `fitment_claims`; `verified` also needs a blind
   `fitment_verifications` row from a different key. Evidence comes only from `sources`
-  pitcrew captured itself (`backend/fetch.py`: public https only) or manual pages; tier is
-  `catalogue` for `PITCREW_CATALOGUE_DOMAINS`, or the owner-set manual `tier`.
+  pitcrew captured itself (`backend/fetch.py`: public https only) or manual pages. The
+  capturing agent rates each source's authority (`tier` + `tier_reason`) and the blind
+  verifier must also judge it authoritative. Do not add allowlists or other limits on what
+  the agent may search or cite; reliability is the agent's judgement, checked by the verifier.
 - `static/llms.txt` is the agent contract: keep it in step with `backend/routes/agent.py`.
 - Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
 

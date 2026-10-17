@@ -5,7 +5,6 @@
 import asyncio
 import io
 import ipaddress
-import os
 import re
 import socket
 from html.parser import HTMLParser
@@ -23,13 +22,6 @@ USER_AGENT = 'pitcrew-evidence/1.0'
 _NAT64 = ipaddress.ip_network('64:ff9b::/96')  # is_global, but maps onto IPv4 space
 _fetch_slots = asyncio.Semaphore(3)
 
-# Hosts whose pages count as parts-catalogue evidence; a listed domain covers its subdomains
-CATALOGUE_DOMAINS = {
-    d.strip().lower().lstrip('.')
-    for d in os.environ.get('PITCREW_CATALOGUE_DOMAINS', '').split(',') if d.strip()
-}
-
-
 class FetchError(Exception):
     pass
 
@@ -39,11 +31,6 @@ class Page(NamedTuple):
     domain: str
     title: str
     text: str
-
-
-def domain_tier(host: str) -> str:
-    host = (host or '').lower().rstrip('.')
-    return 'catalogue' if any(host == d or host.endswith('.' + d) for d in CATALOGUE_DOMAINS) else 'other'
 
 
 async def _check_target(url: str) -> str:

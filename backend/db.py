@@ -28,7 +28,6 @@ VALID_PART_CATEGORIES = {'Mechanical', 'Electrical', 'Body', 'Interior', 'Consum
 VALID_PART_SOURCES = {'owner', 'agent'}
 VALID_PART_ORIGINS = {'oem', 'oe_supplier', 'aftermarket'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
-VALID_MANUAL_TIERS = {'oem', 'catalogue', 'other'}
 VALID_INVENTORY_KINDS = {'tool', 'consumable', 'fluid', 'part', 'other'}
 VALID_VIEW_ANGLES = {'front', 'sideD', 'sideP', 'rear', 'engine', 'underside', 'interior'}
 
@@ -128,7 +127,6 @@ CREATE TABLE IF NOT EXISTS manuals (
     file_path   TEXT NOT NULL,
     category    TEXT DEFAULT 'manual'
                 CHECK(category IN ('manual', 'reference', 'other')),
-    tier        TEXT NOT NULL DEFAULT 'other' CHECK(tier IN ('oem', 'catalogue', 'other')),
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -168,7 +166,8 @@ CREATE TABLE IF NOT EXISTS agent_keys (
     created_at  TEXT DEFAULT (datetime('now'))
 );
 
--- Evidence pitcrew captured itself: pages it fetched, or manual page text
+-- Evidence pitcrew captured itself: pages it fetched, or manual page text. The capturing
+-- agent rates its authority (tier) and says why; a blind verifier must agree before it verifies.
 CREATE TABLE IF NOT EXISTS sources (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     car_id         INTEGER REFERENCES cars(id) ON DELETE CASCADE,
@@ -178,6 +177,7 @@ CREATE TABLE IF NOT EXISTS sources (
     domain         TEXT,
     title          TEXT,
     tier           TEXT NOT NULL CHECK(tier IN ('catalogue', 'oem', 'other')),
+    tier_reason    TEXT NOT NULL,
     extracted_by   TEXT NOT NULL CHECK(extracted_by IN ('text', 'ocr')),
     manual_id      INTEGER REFERENCES manuals(id),
     page           INTEGER,
@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS fitment_verifications (
     claim_id     INTEGER REFERENCES fitment_claims(id) ON DELETE CASCADE,
     agent_key_id INTEGER REFERENCES agent_keys(id),
     verdict      TEXT NOT NULL CHECK(verdict IN ('explicit_fit', 'ambiguous', 'no_fit')),
+    source_authoritative INTEGER NOT NULL,
     quote        TEXT NOT NULL,
     stale_at     TEXT,
     created_at   TEXT DEFAULT (datetime('now'))
@@ -321,7 +322,6 @@ async def init_db():
         "ALTER TABLE parts ADD COLUMN agent_key_id INTEGER",
         "ALTER TABLE journal ADD COLUMN agent_key_id INTEGER",
         "ALTER TABLE journal ADD COLUMN source_ids TEXT",
-        "ALTER TABLE manuals ADD COLUMN tier TEXT NOT NULL DEFAULT 'other' CHECK(tier IN ('oem', 'catalogue', 'other'))",
     ]
     for stmt in _migrations:
         try:
@@ -937,22 +937,6 @@ async def create_manual(car_id: int, title: str, file_path: str, category: str =
     )
 
 
-async def update_manual_tier(manual_id: int, tier: str) -> int:
-    if tier not in VALID_MANUAL_TIERS:
-        raise ValueError(f"Invalid manual tier: {tier}")
-    async with transaction() as db:
-        cur = await db.execute(
-            f"UPDATE manuals SET tier = ? WHERE id = ? AND {_LIVE_MANUAL}", (tier, manual_id)
-        )
-        # Parts whose evidence is a page of this manual now carry its new tier
-        for r in await _fetchall(
-            "SELECT DISTINCT c.part_id FROM fitment_claims c JOIN sources s ON s.id = c.source_id "
-            "WHERE s.manual_id = ? AND c.superseded_at IS NULL", (manual_id,)
-        ):
-            await _regate(db, r['part_id'], clear_recheck=False)
-        return cur.rowcount
-
-
 async def soft_delete_manual(manual_id: int) -> int:
     return await _execute(
         f"UPDATE manuals SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_MANUAL}",
@@ -1022,10 +1006,10 @@ async def revoke_agent_key(key_id: int) -> int:
 
 async def create_source(car_id: int, agent_key_id: int, data: dict) -> int:
     return await _insert(
-        "INSERT INTO sources (car_id, agent_key_id, kind, url, domain, title, tier, extracted_by, "
-        "manual_id, page, content, content_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO sources (car_id, agent_key_id, kind, url, domain, title, tier, tier_reason, extracted_by, "
+        "manual_id, page, content, content_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (car_id, agent_key_id, data['kind'], data.get('url'), data.get('domain'), data.get('title'),
-         data['tier'], data['extracted_by'], data.get('manual_id'), data.get('page'),
+         data['tier'], data['tier_reason'], data['extracted_by'], data.get('manual_id'), data.get('page'),
          data['content'], data['content_sha256'])
     )
 
@@ -1041,6 +1025,19 @@ async def get_source(source_id: int):
     return await _fetchone("SELECT * FROM sources WHERE id = ? AND deleted_at IS NULL", (source_id,))
 
 
+async def reassess_source(source_id: int, agent_key_id: int, tier: str, reason: str) -> None:
+    """The capturing agent revises its rating of a source; parts resting on it are re-gated."""
+    async with transaction() as db:
+        source = await get_source(source_id)
+        if not source or source['agent_key_id'] != agent_key_id:
+            raise ValueError('Only the agent key that captured this source can reassess it')
+        await db.execute("UPDATE sources SET tier = ?, tier_reason = ? WHERE id = ?", (tier, reason, source_id))
+        for r in await _fetchall(
+            "SELECT part_id FROM fitment_claims WHERE source_id = ? AND superseded_at IS NULL", (source_id,)
+        ):
+            await _regate(db, r['part_id'], clear_recheck=False)
+
+
 async def get_current_claim(part_id: int):
     return await _fetchone(
         "SELECT * FROM fitment_claims WHERE part_id = ? AND superseded_at IS NULL", (part_id,)
@@ -1048,15 +1045,6 @@ async def get_current_claim(part_id: int):
 
 
 _VERDICT_CAUTION = {'no_fit': 0, 'ambiguous': 1, 'explicit_fit': 2}
-
-
-async def _current_tier(source: dict) -> str:
-    """Tier as configured now, so a downgraded manual or catalogue domain stops verifying."""
-    from backend.fetch import domain_tier
-    if source['kind'] == 'web_page':
-        return domain_tier(source['domain'])
-    manual = await get_manual(source['manual_id'])
-    return manual['tier'] if manual else 'other'
 
 
 async def _regate(db, part_id: int, *, clear_recheck: bool = True):
@@ -1068,7 +1056,7 @@ async def _regate(db, part_id: int, *, clear_recheck: bool = True):
     source = await get_source(claim['source_id'])
     active_keys = {k['id'] for k in await _fetchall("SELECT id FROM agent_keys WHERE revoked_at IS NULL")}
     live = [v for v in await _fetchall(
-        "SELECT verdict, quote, agent_key_id FROM fitment_verifications "
+        "SELECT verdict, source_authoritative, quote, agent_key_id FROM fitment_verifications "
         "WHERE claim_id = ? AND stale_at IS NULL ORDER BY id",
         (claim['id'],)
     ) if v['agent_key_id'] in active_keys]
@@ -1082,12 +1070,12 @@ async def _regate(db, part_id: int, *, clear_recheck: bool = True):
         'applies_when': json.loads(claim['applies_when']),
     }
     evidence = {
-        'kind': source['kind'], 'tier': await _current_tier(source), 'url': source['url'],
+        'kind': source['kind'], 'tier': source['tier'], 'url': source['url'],
         'extracted_by': source['extracted_by'], 'excerpt': claim['excerpt'],
     } if source else None
     verif_d = {
         'verdict': verification['verdict'], 'quote': verification['quote'],
-        'agent_id': verification['agent_key_id'],
+        'source_ok': bool(verification['source_authoritative']), 'agent_id': verification['agent_key_id'],
     } if verification else None
     build = await get_build(part['car_id'])
     result = fitment.gate(claim_d, build, evidence, verif_d)
@@ -1098,17 +1086,6 @@ async def _regate(db, part_id: int, *, clear_recheck: bool = True):
         (result.level, json.dumps(result.open_fields), json.dumps(snapshot), part_id)
     )
     return result
-
-
-async def regate_all() -> None:
-    """Re-run the gate for every claimed part, e.g. after catalogue domains change at startup."""
-    rows = await _fetchall(
-        f"SELECT DISTINCT p.id FROM parts p JOIN fitment_claims c ON c.part_id = p.id "
-        f"WHERE c.superseded_at IS NULL AND p.{_LIVE_PART}"
-    )
-    async with transaction() as db:
-        for r in rows:
-            await _regate(db, r['id'], clear_recheck=False)
 
 
 async def _insert_claim(db, part_id: int, agent_key_id: int, claim: dict) -> None:
@@ -1156,7 +1133,8 @@ async def replace_claim(part_id: int, agent_key_id: int, claim: dict):
     return result
 
 
-async def add_verification(part_id: int, claim_id: int, agent_key_id: int, verdict: str, quote: str):
+async def add_verification(part_id: int, claim_id: int, agent_key_id: int, verdict: str,
+                           source_authoritative: bool, quote: str):
     async with transaction() as db:
         claim = await get_current_claim(part_id)
         if not claim:
@@ -1171,8 +1149,9 @@ async def add_verification(part_id: int, claim_id: int, agent_key_id: int, verdi
         ):
             raise ValueError('This agent key has already given its verdict on this claim')
         await db.execute(
-            "INSERT INTO fitment_verifications (claim_id, agent_key_id, verdict, quote) VALUES (?, ?, ?, ?)",
-            (claim['id'], agent_key_id, verdict, quote)
+            "INSERT INTO fitment_verifications (claim_id, agent_key_id, verdict, source_authoritative, quote) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (claim['id'], agent_key_id, verdict, int(source_authoritative), quote)
         )
         return await _regate(db, part_id)
 

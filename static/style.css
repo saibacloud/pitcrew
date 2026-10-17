@@ -1177,11 +1177,6 @@ main {
     color: var(--muted);
 }
 
-.manual-card-tier {
-    margin-top: 10px;
-    max-width: 100%;
-}
-
 /* ── PDF Viewer ───────────────────────────────────────────────────────────── */
 
 .pdf-viewer-overlay {
