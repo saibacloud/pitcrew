@@ -157,10 +157,11 @@ CREATE TABLE IF NOT EXISTS build_fields (
 CREATE UNIQUE INDEX IF NOT EXISTS build_fields_current
     ON build_fields(car_id, field) WHERE superseded_at IS NULL;
 
--- Credentials for external mechanic agents. Only the SHA-256 of each token is stored.
+-- Credentials for external mechanic agents, synced from PITCREW_AGENT_KEYS at startup.
+-- Only the SHA-256 of each token is stored. Rows outlive revocation so claims keep their author.
 CREATE TABLE IF NOT EXISTS agent_keys (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    label       TEXT NOT NULL,
+    label       TEXT NOT NULL UNIQUE,
     token_hash  TEXT NOT NULL UNIQUE,
     revoked_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
@@ -994,14 +995,22 @@ async def get_agent_key(token_hash: str):
     )
 
 
-async def list_agent_keys():
-    return await _fetchall("SELECT id, label, revoked_at, created_at FROM agent_keys ORDER BY id")
-
-
-async def revoke_agent_key(key_id: int) -> int:
-    return await _execute(
-        "UPDATE agent_keys SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL", (key_id,)
-    )
+async def sync_agent_keys(keys: dict[str, str]) -> None:
+    """Make the configured label -> token hash set the active keys. A label keeps its identity
+    across token rotation; labels no longer configured are revoked, not deleted."""
+    async with transaction() as db:
+        for label, token_hash in keys.items():
+            await db.execute(
+                "INSERT INTO agent_keys (label, token_hash) VALUES (?, ?) ON CONFLICT(label) "
+                "DO UPDATE SET token_hash = excluded.token_hash, revoked_at = NULL",
+                (label, token_hash)
+            )
+        marks = ', '.join('?' for _ in keys)
+        await db.execute(
+            "UPDATE agent_keys SET revoked_at = datetime('now') WHERE revoked_at IS NULL"
+            + (f" AND label NOT IN ({marks})" if keys else ""),
+            tuple(keys)
+        )
 
 
 async def create_source(car_id: int, agent_key_id: int, data: dict) -> int:

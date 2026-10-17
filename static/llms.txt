@@ -11,7 +11,7 @@ A wrong part number costs the owner money and time. When the evidence does not m
 ## 1. Connect
 
 - Base URL: the host serving this file (e.g. `https://pitcrew.local.saiba.cloud`). All API paths below are under `/api/agent`.
-- Authenticate every request with `Authorization: Bearer <token>`. The owner creates tokens on the server with `python -m backend.agent_keys create "<label>"` and gives you one. Never print, log or store the token in pitcrew records.
+- Authenticate every request with `Authorization: Bearer <token>`. The owner generates tokens with `python -m backend.agent_keys <label>`, adds the printed hash to the deployment's `PITCREW_AGENT_KEYS` secret, and gives you the token. Never print, log or store the token in pitcrew records.
 - Each token is an agent identity. The identity that makes a part claim can never verify it (section 5).
 - Send JSON. Errors return `{"detail": ...}` with a 4xx status. Fix the request; do not retry the same body expecting a different result.
 - On POST, send an `Idempotency-Key` header (any stable string up to 200 characters, e.g. `<session>:part:3`). Retrying a successful write with the same key and body returns the original response; a retry after an error runs again. Reusing a key for a different body returns 422. Use a new key for each new write.

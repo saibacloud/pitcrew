@@ -1,7 +1,7 @@
 import pytest
 
 from backend import db
-from backend.agent_keys import hash_token
+from backend.agent_keys import hash_token, parse_keys
 from backend.fetch import Page, FetchError, _check_target, html_to_text
 from backend.routes import agent as agent_routes
 
@@ -62,9 +62,25 @@ def test_agent_routes_need_a_bearer_token(client):
     assert client.get('/api/agent/cars', headers={'Authorization': 'Bearer pc_nope'}).status_code == 401
 
 
-def test_revoked_key_is_rejected(client, run, agents):
-    run(db.revoke_agent_key, 1)
+def test_key_removed_from_config_is_revoked(client, run, agents):
+    run(db.sync_agent_keys, {'verifier': hash_token('pc_test_verifier')})
     assert client.get('/api/agent/cars', headers=agents['mech']).status_code == 401
+    assert client.get('/api/agent/cars', headers=agents['verifier']).status_code == 200
+
+
+def test_rotating_a_token_keeps_the_key_identity(client, run, agents):
+    run(db.sync_agent_keys, {'mech': hash_token('pc_rotated'), 'verifier': hash_token('pc_test_verifier')})
+    assert client.get('/api/agent/cars', headers=agents['mech']).status_code == 401
+    rotated = {'Authorization': 'Bearer pc_rotated'}
+    assert client.get('/api/agent/cars', headers=rotated).status_code == 200
+    assert run(db.get_agent_key, hash_token('pc_rotated'))['id'] == 1
+
+
+def test_parse_keys_skips_bad_and_duplicate_entries():
+    good = hash_token('pc_a')
+    keys = parse_keys(f'mechanic:{good}, Verifier:{hash_token("pc_b")},bad label:{good},x:nothex,'
+                      f'mechanic:{hash_token("pc_c")},other:{good},')
+    assert keys == {'mechanic': good, 'verifier': hash_token('pc_b')}
 
 
 def test_llms_txt_is_public(client):
@@ -383,3 +399,13 @@ def test_connected_address_check_reads_the_real_peer(run):
     public, addr = run(peer_ok)
     server.server_close()
     assert addr[0] == '127.0.0.1' and public is False
+
+
+def test_startup_loads_keys_from_the_env_secret(client, run, monkeypatch):
+    from backend.agent_keys import load_agent_keys
+    monkeypatch.setenv('PITCREW_AGENT_KEYS', f'mechanic:{hash_token("pc_env_token")}')
+    run(load_agent_keys)
+    assert client.get('/api/agent/cars', headers={'Authorization': 'Bearer pc_env_token'}).status_code == 200
+    monkeypatch.delenv('PITCREW_AGENT_KEYS')
+    run(load_agent_keys)
+    assert client.get('/api/agent/cars', headers={'Authorization': 'Bearer pc_env_token'}).status_code == 401
