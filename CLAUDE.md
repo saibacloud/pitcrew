@@ -73,7 +73,8 @@ session), only its markup/CSS/JS by inspection.
   overrides (409, then `override_fitment: true`, recorded in `override_at`). Owner parts are ungated.
 - The AI mechanic is an external agent session (Claude Code / Codex) that reads `/llms.txt`
   (`static/llms.txt`) and works through `/api/agent/*` with a bearer key
-  (`python -m backend.agent_keys create LABEL | list | revoke ID`). Pitcrew makes no
+  (`python -m backend.agent_keys LABEL` prints a token and its `label:sha256`; the hashes go
+  in the `PITCREW_AGENT_KEYS` env secret, synced to `agent_keys` at startup, unset = none). Pitcrew makes no
   confidence-bearing LLM calls; the in-app chat / Doc search (Gemini) is lookup only.
 - Agents write gated parts via `fitment_claims`; `verified` also needs a blind
   `fitment_verifications` row from a different key. Evidence comes only from `sources`

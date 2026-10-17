@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 # Resolve .env relative to this file so it works regardless of cwd
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
+from backend.agent_keys import load_agent_keys
 from backend.auth import require_session
 from backend.db import init_db, close_db
 from backend.routes.auth import router as auth_router
@@ -48,6 +49,7 @@ os.makedirs(os.path.join(UPLOADS_DIR, 'views'), exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await load_agent_keys()
     log.info("PitCrew started")
     yield
     await close_db()

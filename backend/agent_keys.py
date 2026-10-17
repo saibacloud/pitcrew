@@ -1,9 +1,12 @@
 # Agent credentials — bearer tokens for external mechanic agents
-# Tokens are shown once at creation; the DB keeps only their SHA-256.
-# CLI (from the project root): python -m backend.agent_keys create "Claude Code mechanic" | list | revoke ID
+# Configured like the PIN: generate a token locally, put only its hash in the deployment's
+# PITCREW_AGENT_KEYS env secret, and give the token to the agent session.
+# Generate (from the project root): python -m backend.agent_keys LABEL
 
-import asyncio
 import hashlib
+import logging
+import os
+import re
 import secrets
 import sys
 
@@ -12,7 +15,11 @@ from fastapi import Header, HTTPException
 from backend import db
 from backend.auth import RateLimiter
 
+log = logging.getLogger(__name__)
+
 TOKEN_PREFIX = 'pc_'
+_LABEL = re.compile(r'^[a-z0-9][a-z0-9_-]{0,39}$')
+_HASH = re.compile(r'^[0-9a-f]{64}$')
 
 # Fetching evidence reaches out to other sites, so agents get a per-key brake
 agent_limiter = RateLimiter(120, 60, 'Too many agent requests — slow down')
@@ -24,6 +31,30 @@ def hash_token(token: str) -> str:
 
 def new_token() -> str:
     return TOKEN_PREFIX + secrets.token_urlsafe(32)
+
+
+def parse_keys(value: str) -> dict[str, str]:
+    """label -> token hash from 'label:sha256,label:sha256'. Bad or duplicate entries are skipped."""
+    keys: dict[str, str] = {}
+    for entry in (e.strip() for e in (value or '').split(',')):
+        if not entry:
+            continue
+        label, _, token_hash = entry.partition(':')
+        label, token_hash = label.strip().lower(), token_hash.strip().lower()
+        if not _LABEL.match(label) or not _HASH.match(token_hash):
+            log.error("Ignoring malformed PITCREW_AGENT_KEYS entry %r", label or entry[:12])
+        elif label in keys or token_hash in keys.values():
+            log.error("Ignoring duplicate PITCREW_AGENT_KEYS entry %r", label)
+        else:
+            keys[label] = token_hash
+    return keys
+
+
+async def load_agent_keys() -> None:
+    """Startup: the env secret is the source of truth; an unset secret revokes every key."""
+    keys = parse_keys(os.environ.get('PITCREW_AGENT_KEYS', ''))
+    await db.sync_agent_keys(keys)
+    log.info("Agent keys active: %s", ', '.join(keys) or 'none')
 
 
 async def require_agent(authorization: str | None = Header(default=None)) -> dict:
@@ -38,24 +69,9 @@ async def require_agent(authorization: str | None = Header(default=None)) -> dic
     return key
 
 
-async def _cli(args: list[str]) -> None:
-    await db.init_db()
-    try:
-        if args[:1] == ['create'] and len(args) == 2 and args[1].strip():
-            token = new_token()
-            key_id = await db.create_agent_key(args[1].strip(), hash_token(token))
-            print(f'Key {key_id} created. Token (shown once):\n{token}')
-        elif args == ['list']:
-            for k in await db.list_agent_keys():
-                state = f'revoked {k["revoked_at"]}' if k['revoked_at'] else 'active'
-                print(f'{k["id"]}\t{k["label"]}\t{state}\t{k["created_at"]}')
-        elif args[:1] == ['revoke'] and len(args) == 2 and args[1].isdigit():
-            print('Revoked' if await db.revoke_agent_key(int(args[1])) else 'No active key with that ID')
-        else:
-            raise SystemExit('Usage: python -m backend.agent_keys create LABEL | list | revoke ID')
-    finally:
-        await db.close_db()
-
-
 if __name__ == '__main__':
-    asyncio.run(_cli(sys.argv[1:]))
+    if len(sys.argv) != 2 or not _LABEL.match(sys.argv[1]):
+        raise SystemExit('Usage: python -m backend.agent_keys LABEL  (lowercase letters, digits, - or _)')
+    token = new_token()
+    print(f'Token for the agent session (shown once):\n{token}\n')
+    print(f'Add to PITCREW_AGENT_KEYS (comma-separate several):\n{sys.argv[1]}:{hash_token(token)}')
