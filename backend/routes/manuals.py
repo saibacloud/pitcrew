@@ -16,7 +16,7 @@ from google.genai import types
 from backend.auth import rate_limit_ai
 from backend.db import (
     get_car, get_manual, get_manuals,
-    create_manual, soft_delete_manual,
+    create_manual, soft_delete_manual, update_manual_tier,
     create_journal, get_journal,
     VALID_MANUAL_CATEGORIES,
 )
@@ -181,6 +181,22 @@ async def upload_manual(
     except ValueError as e:
         os.remove(dest)
         raise HTTPException(400, str(e))
+    return await get_manual(manual_id)
+
+
+class ManualTierBody(BaseModel):
+    tier: str
+
+
+# Owner-set trust level: only 'oem' and 'catalogue' manual pages can verify a part number
+@router.patch('/manuals/{manual_id}')
+async def set_manual_tier(manual_id: int, body: ManualTierBody):
+    try:
+        rows = await update_manual_tier(manual_id, body.tier)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    if rows == 0:
+        raise HTTPException(404, 'Manual not found')
     return await get_manual(manual_id)
 
 

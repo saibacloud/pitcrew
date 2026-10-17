@@ -30,6 +30,7 @@ function renderBuild(data, force) {
             list.append(buildRow(f, missing));
         } else if (f.field !== force && old.contains(document.activeElement)) {
             old.classList.toggle('build-row-missing', missing.has(f.field));
+            old.classList.toggle('build-row-pending', f.value != null && !f.confirmed);
             old.querySelector('.build-meta').replaceWith(buildMeta(f));
         } else {
             old.replaceWith(buildRow(f, missing));
@@ -40,6 +41,17 @@ function renderBuild(data, force) {
 // Latest saved value; input closures can be older than the last render
 function savedValue(field) {
     return buildData?.fields.find(f => f.field === field)?.value ?? null;
+}
+
+async function confirmField(field) {
+    if (!activeCar) return;
+    const carId = activeCar.id;
+    try {
+        const data = await api('POST', `/api/cars/${carId}/build/${encodeURIComponent(field)}/confirm`);
+        if (activeCar?.id === carId) renderBuild(data, field);
+    } catch (e) {
+        toast(errorMessage(e, 'Confirm failed'));
+    }
 }
 
 async function saveField(field, value) {
@@ -67,6 +79,7 @@ function buildRow(f, missing) {
     const row = el('div', { className: 'build-row' });
     row.dataset.field = f.field;
     row.classList.toggle('build-row-missing', missing.has(f.field));
+    row.classList.toggle('build-row-pending', f.value != null && !f.confirmed);
 
     const id = `build-${f.field}`;
     const label = f.kind === 'options'
@@ -86,6 +99,13 @@ function buildMeta(f) {
             textContent: f.source,
             title: f.updated_at || '',
         }));
+    }
+    // Values an agent wrote count for fitment only once the owner confirms them
+    if (!f.confirmed) {
+        const confirm = el('button', { type: 'button', className: 'btn btn-ghost build-confirm', textContent: 'Confirm' });
+        confirm.setAttribute('aria-label', `Confirm ${f.label}`);
+        confirm.addEventListener('click', () => confirmField(f.field));
+        meta.append(confirm);
     }
     const clear = el('button', {
         type: 'button',

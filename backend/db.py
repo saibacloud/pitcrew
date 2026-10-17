@@ -28,6 +28,7 @@ VALID_PART_CATEGORIES = {'Mechanical', 'Electrical', 'Body', 'Interior', 'Consum
 VALID_PART_SOURCES = {'owner', 'agent'}
 VALID_PART_ORIGINS = {'oem', 'oe_supplier', 'aftermarket'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
+VALID_MANUAL_TIERS = {'oem', 'catalogue', 'other'}
 VALID_VIEW_ANGLES = {'front', 'sideD', 'sideP', 'rear', 'engine', 'underside', 'interior'}
 
 # ── Schema ───────────────────────────────────────────────────────────────────
@@ -59,6 +60,8 @@ CREATE TABLE IF NOT EXISTS journal (
     photo_url   TEXT,
     odometer    INTEGER,
     search_suggestions TEXT,
+    agent_key_id INTEGER,
+    source_ids  TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -112,6 +115,7 @@ CREATE TABLE IF NOT EXISTS parts (
     brand       TEXT,
     origin      TEXT CHECK(origin IN ('oem', 'oe_supplier', 'aftermarket')),
     superseded_by TEXT,
+    agent_key_id INTEGER,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -123,6 +127,7 @@ CREATE TABLE IF NOT EXISTS manuals (
     file_path   TEXT NOT NULL,
     category    TEXT DEFAULT 'manual'
                 CHECK(category IN ('manual', 'reference', 'other')),
+    tier        TEXT NOT NULL DEFAULT 'other' CHECK(tier IN ('oem', 'catalogue', 'other')),
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -143,12 +148,80 @@ CREATE TABLE IF NOT EXISTS build_fields (
     source        TEXT NOT NULL DEFAULT 'owner'
                   CHECK(source IN ('owner', 'data_plate', 'catalogue', 'document')),
     source_id     INTEGER,
+    agent_key_id  INTEGER,
+    quote         TEXT,
+    confirmed_at  TEXT,
     superseded_at TEXT,
     created_at    TEXT DEFAULT (datetime('now'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS build_fields_current
     ON build_fields(car_id, field) WHERE superseded_at IS NULL;
+
+-- Credentials for external mechanic agents. Only the SHA-256 of each token is stored.
+CREATE TABLE IF NOT EXISTS agent_keys (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    label       TEXT NOT NULL,
+    token_hash  TEXT NOT NULL UNIQUE,
+    revoked_at  TEXT,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+
+-- Evidence pitcrew captured itself: pages it fetched, or manual page text
+CREATE TABLE IF NOT EXISTS sources (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    car_id         INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+    agent_key_id   INTEGER REFERENCES agent_keys(id),
+    kind           TEXT NOT NULL CHECK(kind IN ('web_page', 'manual_page')),
+    url            TEXT,
+    domain         TEXT,
+    title          TEXT,
+    tier           TEXT NOT NULL CHECK(tier IN ('catalogue', 'oem', 'other')),
+    extracted_by   TEXT NOT NULL CHECK(extracted_by IN ('text', 'ocr')),
+    manual_id      INTEGER REFERENCES manuals(id),
+    page           INTEGER,
+    content        TEXT NOT NULL,
+    content_sha256 TEXT NOT NULL,
+    deleted_at     TEXT,
+    fetched_at     TEXT DEFAULT (datetime('now'))
+);
+
+-- An agent's fitment claim for a part, bound to one excerpt of one source
+CREATE TABLE IF NOT EXISTS fitment_claims (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    part_id       INTEGER REFERENCES parts(id) ON DELETE CASCADE,
+    agent_key_id  INTEGER REFERENCES agent_keys(id),
+    part_number   TEXT NOT NULL,
+    claimed       TEXT NOT NULL CHECK(claimed IN ('verified', 'conditional', 'unverified')),
+    depends_on    TEXT NOT NULL,
+    applies_when  TEXT NOT NULL,
+    source_id     INTEGER REFERENCES sources(id),
+    excerpt       TEXT NOT NULL,
+    superseded_at TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
+-- Blind second-agent checks of a claim. Stale once a build field it relied on changes.
+CREATE TABLE IF NOT EXISTS fitment_verifications (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    claim_id     INTEGER REFERENCES fitment_claims(id) ON DELETE CASCADE,
+    agent_key_id INTEGER REFERENCES agent_keys(id),
+    verdict      TEXT NOT NULL CHECK(verdict IN ('explicit_fit', 'ambiguous', 'no_fit')),
+    quote        TEXT NOT NULL,
+    stale_at     TEXT,
+    created_at   TEXT DEFAULT (datetime('now'))
+);
+
+-- Replay store for agent retries carrying an Idempotency-Key
+CREATE TABLE IF NOT EXISTS agent_requests (
+    agent_key_id  INTEGER NOT NULL,
+    idem_key      TEXT NOT NULL,
+    request_hash  TEXT NOT NULL,
+    status_code   INTEGER NOT NULL,
+    response      TEXT NOT NULL,
+    created_at    TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (agent_key_id, idem_key)
+);
 """
 
 # ── Shared connection ────────────────────────────────────────────────────────
@@ -209,6 +282,10 @@ async def init_db():
         "ALTER TABLE parts ADD COLUMN brand TEXT",
         "ALTER TABLE parts ADD COLUMN origin TEXT CHECK(origin IN ('oem', 'oe_supplier', 'aftermarket'))",
         "ALTER TABLE parts ADD COLUMN superseded_by TEXT",
+        "ALTER TABLE parts ADD COLUMN agent_key_id INTEGER",
+        "ALTER TABLE journal ADD COLUMN agent_key_id INTEGER",
+        "ALTER TABLE journal ADD COLUMN source_ids TEXT",
+        "ALTER TABLE manuals ADD COLUMN tier TEXT NOT NULL DEFAULT 'other' CHECK(tier IN ('oem', 'catalogue', 'other'))",
     ]
     for stmt in _migrations:
         try:
@@ -290,13 +367,17 @@ async def init_db():
                 photo_url   TEXT,
                 odometer    INTEGER,
                 search_suggestions TEXT,
+                agent_key_id INTEGER,
+                source_ids  TEXT,
                 deleted_at  TEXT,
                 created_at  TEXT DEFAULT (datetime('now'))
             );
             INSERT INTO journal_new (id, car_id, type, title, body, photo_url, odometer,
-                                     search_suggestions, deleted_at, created_at)
+                                     search_suggestions, agent_key_id, source_ids,
+                                     deleted_at, created_at)
                 SELECT id, car_id, type, title, body, photo_url, odometer,
-                       search_suggestions, deleted_at, created_at FROM journal;
+                       search_suggestions, agent_key_id, source_ids,
+                       deleted_at, created_at FROM journal;
             DROP TABLE journal;
             ALTER TABLE journal_new RENAME TO journal;
         """)
@@ -462,10 +543,11 @@ async def create_journal(car_id: int, data: dict) -> int:
     if j_type not in VALID_JOURNAL_TYPES:
         raise ValueError(f"Invalid journal type: {j_type}")
     return await _insert(
-        "INSERT INTO journal (car_id, type, title, body, photo_url, odometer, search_suggestions) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO journal (car_id, type, title, body, photo_url, odometer, search_suggestions, "
+        "agent_key_id, source_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (car_id, j_type, data.get('title', ''), data.get('body'), data.get('photo_url'),
-         data.get('odometer'), data.get('search_suggestions'))
+         data.get('odometer'), data.get('search_suggestions'),
+         data.get('agent_key_id'), data.get('source_ids'))
     )
 
 
@@ -580,6 +662,9 @@ async def soft_delete_photopin(photopin_id: int) -> int:
 _PART_FIELDS = ('name', 'part_number', 'supplier', 'url', 'price',
                 'quantity', 'category', 'status', 'notes', 'pin_id')
 _LIVE_PART = "deleted_at IS NULL"
+# Columns an agent may set on its parts; status, confidence and fitment are server-owned
+AGENT_PART_FIELDS = ('name', 'supplier', 'url', 'price', 'quantity', 'category', 'notes',
+                      'brand', 'origin', 'superseded_by')
 
 
 async def get_parts(car_id: int, *, limit: int = 100, offset: int = 0):
@@ -628,12 +713,15 @@ class FitmentGateError(Exception):
     """An agent-sourced part cannot leave the wishlist without verified fitment or an owner override."""
 
 
-async def update_part(part_id: int, data: dict, *, override_fitment: bool = False) -> int:
-    fields = {k: v for k, v in data.items() if k in _PART_FIELDS}
+async def update_part(part_id: int, data: dict, *, override_fitment: bool = False,
+                      allowed: tuple = _PART_FIELDS) -> int:
+    fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return 0
     if 'category' in fields and fields['category'] not in VALID_PART_CATEGORIES:
         raise ValueError(f"Invalid part category: {fields['category']}")
+    if 'origin' in fields and fields['origin'] not in VALID_PART_ORIGINS:
+        raise ValueError(f"Invalid part origin: {fields['origin']}")
     if 'status' in fields and fields['status'] not in VALID_PART_STATUSES:
         raise ValueError(f"Invalid part status: {fields['status']}")
 
@@ -649,6 +737,10 @@ async def update_part(part_id: int, data: dict, *, override_fitment: bool = Fals
             new_pn = fields.get('part_number', part['part_number'])
             if fitment.normalise_part_number(new_pn) != fitment.normalise_part_number(part['part_number']):
                 fields.update(confidence='unverified', fitment_json=None, needs_recheck=0)
+                await db.execute(
+                    "UPDATE fitment_claims SET superseded_at = datetime('now') "
+                    "WHERE part_id = ? AND superseded_at IS NULL", (part_id,)
+                )
             confidence = fields.get('confidence', part['confidence'])
             leaving_wishlist = part['status'] == 'wishlist' and fields.get('status', 'wishlist') != 'wishlist'
             if leaving_wishlist and confidence != 'verified':
@@ -679,7 +771,7 @@ _CURRENT_BUILD = "superseded_at IS NULL"
 
 async def get_build_rows(car_id: int) -> dict[str, dict]:
     rows = await _fetchall(
-        f"SELECT field, value, source, source_id, created_at FROM build_fields "
+        f"SELECT field, value, source, source_id, agent_key_id, confirmed_at, created_at FROM build_fields "
         f"WHERE car_id = ? AND {_CURRENT_BUILD}",
         (car_id,)
     )
@@ -687,8 +779,9 @@ async def get_build_rows(car_id: int) -> dict[str, dict]:
 
 
 async def get_build(car_id: int) -> dict:
-    """Decoded build sheet, field -> value, unset fields absent."""
-    return {f: fitment.decode_build_value(f, r['value']) for f, r in (await get_build_rows(car_id)).items()}
+    """The build sheet the gate sees: owner-confirmed values only, decoded, unset fields absent."""
+    return {f: fitment.decode_build_value(f, r['value'])
+            for f, r in (await get_build_rows(car_id)).items() if r['confirmed_at']}
 
 
 async def _flag_recheck(db, car_id: int, field: str) -> None:
@@ -706,20 +799,32 @@ async def _flag_recheck(db, car_id: int, field: str) -> None:
             "WHEN 'verified' THEN 'conditional' ELSE confidence END WHERE id = ?",
             (part_id,)
         )
+        # The verifier judged the old build sheet, so its verdict no longer counts
+        await db.execute(
+            "UPDATE fitment_verifications SET stale_at = datetime('now') WHERE stale_at IS NULL "
+            "AND claim_id IN (SELECT id FROM fitment_claims WHERE part_id = ?)",
+            (part_id,)
+        )
+        await _regate(db, part_id, clear_recheck=False)
 
 
 async def set_build_field(car_id: int, field: str, value, *, source: str = 'owner',
-                          source_id: Optional[int] = None) -> None:
+                          source_id: Optional[int] = None, agent_key_id: Optional[int] = None,
+                          quote: Optional[str] = None) -> None:
+    """Owner writes are confirmed at once; agent writes wait for the owner to confirm them."""
     stored = fitment.encode_build_value(field, value)
     if source not in fitment.BUILD_SOURCES:
         raise ValueError(f"Invalid build field source: {source}")
+    confirmed = agent_key_id is None
     async with transaction() as db:
         async with db.execute(
-            f"SELECT value, source FROM build_fields WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
+            f"SELECT value, source, agent_key_id, confirmed_at FROM build_fields "
+            f"WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
             (car_id, field)
         ) as cur:
             current = await cur.fetchone()
-        if current and current['value'] == stored and current['source'] == source:
+        if current and current['value'] == stored and current['source'] == source \
+                and bool(current['confirmed_at']) == confirmed:
             return
         if current:
             await db.execute(
@@ -727,12 +832,26 @@ async def set_build_field(car_id: int, field: str, value, *, source: str = 'owne
                 f"WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
                 (car_id, field)
             )
-            if current['value'] != stored:
-                await _flag_recheck(db, car_id, field)
         await db.execute(
-            "INSERT INTO build_fields (car_id, field, value, source, source_id) VALUES (?, ?, ?, ?, ?)",
-            (car_id, field, stored, source, source_id)
+            "INSERT INTO build_fields (car_id, field, value, source, source_id, agent_key_id, quote, "
+            "confirmed_at) VALUES (?, ?, ?, ?, ?, ?, ?, " + ("datetime('now')" if confirmed else "NULL") + ")",
+            (car_id, field, stored, source, source_id, agent_key_id, quote)
         )
+        # The gate's view changes when a confirmed value goes, or a new value is confirmed
+        if (current and current['confirmed_at']) or confirmed:
+            await _flag_recheck(db, car_id, field)
+
+
+async def confirm_build_field(car_id: int, field: str) -> int:
+    async with transaction() as db:
+        cur = await db.execute(
+            f"UPDATE build_fields SET confirmed_at = datetime('now') "
+            f"WHERE car_id = ? AND field = ? AND confirmed_at IS NULL AND {_CURRENT_BUILD}",
+            (car_id, field)
+        )
+        if cur.rowcount:
+            await _flag_recheck(db, car_id, field)
+        return cur.rowcount
 
 
 async def clear_build_field(car_id: int, field: str) -> int:
@@ -774,6 +893,22 @@ async def create_manual(car_id: int, title: str, file_path: str, category: str =
     )
 
 
+async def update_manual_tier(manual_id: int, tier: str) -> int:
+    if tier not in VALID_MANUAL_TIERS:
+        raise ValueError(f"Invalid manual tier: {tier}")
+    async with transaction() as db:
+        cur = await db.execute(
+            f"UPDATE manuals SET tier = ? WHERE id = ? AND {_LIVE_MANUAL}", (tier, manual_id)
+        )
+        # Parts whose evidence is a page of this manual now carry its new tier
+        for r in await _fetchall(
+            "SELECT DISTINCT c.part_id FROM fitment_claims c JOIN sources s ON s.id = c.source_id "
+            "WHERE s.manual_id = ? AND c.superseded_at IS NULL", (manual_id,)
+        ):
+            await _regate(db, r['part_id'], clear_recheck=False)
+        return cur.rowcount
+
+
 async def soft_delete_manual(manual_id: int) -> int:
     return await _execute(
         f"UPDATE manuals SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_MANUAL}",
@@ -809,3 +944,206 @@ async def revoke_session(id_hash: str) -> int:
 async def prune_sessions() -> int:
     # Expired rows can never authenticate again, so nothing depends on them
     return await _execute("DELETE FROM sessions WHERE expires_at < datetime('now', '-30 days')")
+
+
+# ── Agents ───────────────────────────────────────────────────────────────────
+
+class NoFitError(Exception):
+    """The evidence shows the part does not fit this car."""
+
+    def __init__(self, result):
+        super().__init__('Evidence shows this part does not fit: ' + ', '.join(result.no_fit))
+        self.result = result
+
+
+async def create_agent_key(label: str, token_hash: str) -> int:
+    return await _insert("INSERT INTO agent_keys (label, token_hash) VALUES (?, ?)", (label, token_hash))
+
+
+async def get_agent_key(token_hash: str):
+    return await _fetchone(
+        "SELECT id, label FROM agent_keys WHERE token_hash = ? AND revoked_at IS NULL", (token_hash,)
+    )
+
+
+async def list_agent_keys():
+    return await _fetchall("SELECT id, label, revoked_at, created_at FROM agent_keys ORDER BY id")
+
+
+async def revoke_agent_key(key_id: int) -> int:
+    return await _execute(
+        "UPDATE agent_keys SET revoked_at = datetime('now') WHERE id = ? AND revoked_at IS NULL", (key_id,)
+    )
+
+
+async def create_source(car_id: int, agent_key_id: int, data: dict) -> int:
+    return await _insert(
+        "INSERT INTO sources (car_id, agent_key_id, kind, url, domain, title, tier, extracted_by, "
+        "manual_id, page, content, content_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (car_id, agent_key_id, data['kind'], data.get('url'), data.get('domain'), data.get('title'),
+         data['tier'], data['extracted_by'], data.get('manual_id'), data.get('page'),
+         data['content'], data['content_sha256'])
+    )
+
+
+async def get_web_sources(car_id: int, url: str):
+    return await _fetchall(
+        "SELECT * FROM sources WHERE car_id = ? AND kind = 'web_page' AND url = ? AND deleted_at IS NULL",
+        (car_id, url)
+    )
+
+
+async def get_source(source_id: int):
+    return await _fetchone("SELECT * FROM sources WHERE id = ? AND deleted_at IS NULL", (source_id,))
+
+
+async def get_current_claim(part_id: int):
+    return await _fetchone(
+        "SELECT * FROM fitment_claims WHERE part_id = ? AND superseded_at IS NULL", (part_id,)
+    )
+
+
+_VERDICT_CAUTION = {'no_fit': 0, 'ambiguous': 1, 'explicit_fit': 2}
+
+
+async def _current_tier(source: dict) -> str:
+    """Tier as configured now, so a downgraded manual or catalogue domain stops verifying."""
+    from backend.fetch import domain_tier
+    if source['kind'] == 'web_page':
+        return domain_tier(source['domain'])
+    manual = await get_manual(source['manual_id'])
+    return manual['tier'] if manual else 'other'
+
+
+async def _regate(db, part_id: int, *, clear_recheck: bool = True):
+    """Recompute a part's confidence from its current claim; call inside a transaction."""
+    part = await _fetchone("SELECT * FROM parts WHERE id = ?", (part_id,))
+    claim = await get_current_claim(part_id)
+    if not part or not claim:
+        return None
+    source = await get_source(claim['source_id'])
+    active_keys = {k['id'] for k in await _fetchall("SELECT id FROM agent_keys WHERE revoked_at IS NULL")}
+    live = [v for v in await _fetchall(
+        "SELECT verdict, quote, agent_key_id FROM fitment_verifications "
+        "WHERE claim_id = ? AND stale_at IS NULL ORDER BY id",
+        (claim['id'],)
+    ) if v['agent_key_id'] in active_keys]
+    # Any live doubt outweighs any number of positive verdicts
+    verification = min(live, key=lambda v: _VERDICT_CAUTION[v['verdict']]) if live else None
+    claim_d = {
+        'part_number': claim['part_number'],
+        'claimed': claim['claimed'] if claim['agent_key_id'] in active_keys else 'unverified',
+        'agent_id': claim['agent_key_id'],
+        'depends_on': json.loads(claim['depends_on']),
+        'applies_when': json.loads(claim['applies_when']),
+    }
+    evidence = {
+        'kind': source['kind'], 'tier': await _current_tier(source), 'url': source['url'],
+        'extracted_by': source['extracted_by'], 'excerpt': claim['excerpt'],
+    } if source else None
+    verif_d = {
+        'verdict': verification['verdict'], 'quote': verification['quote'],
+        'agent_id': verification['agent_key_id'],
+    } if verification else None
+    build = await get_build(part['car_id'])
+    result = fitment.gate(claim_d, build, evidence, verif_d)
+    snapshot = {f: build.get(f) for f in fitment.fields_used(claim_d)}
+    await db.execute(
+        "UPDATE parts SET confidence = ?, open_fields = ?, fitment_json = ?"
+        + (", needs_recheck = 0" if clear_recheck else "") + " WHERE id = ?",
+        (result.level, json.dumps(result.open_fields), json.dumps(snapshot), part_id)
+    )
+    return result
+
+
+async def regate_all() -> None:
+    """Re-run the gate for every claimed part, e.g. after catalogue domains change at startup."""
+    rows = await _fetchall(
+        f"SELECT DISTINCT p.id FROM parts p JOIN fitment_claims c ON c.part_id = p.id "
+        f"WHERE c.superseded_at IS NULL AND p.{_LIVE_PART}"
+    )
+    async with transaction() as db:
+        for r in rows:
+            await _regate(db, r['id'], clear_recheck=False)
+
+
+async def _insert_claim(db, part_id: int, agent_key_id: int, claim: dict) -> None:
+    await db.execute(
+        "UPDATE fitment_claims SET superseded_at = datetime('now') WHERE part_id = ? AND superseded_at IS NULL",
+        (part_id,)
+    )
+    await db.execute(
+        "INSERT INTO fitment_claims (part_id, agent_key_id, part_number, claimed, depends_on, "
+        "applies_when, source_id, excerpt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (part_id, agent_key_id, claim['part_number'], claim['claimed'], json.dumps(claim['depends_on']),
+         json.dumps(claim['applies_when']), claim['source_id'], claim['excerpt'])
+    )
+
+
+async def create_agent_part(car_id: int, agent_key_id: int, data: dict, claim: dict):
+    """Insert an agent part on the wishlist with its claim. Rolls back if the evidence shows no fit."""
+    cols = [f for f in AGENT_PART_FIELDS if data.get(f) is not None]
+    values = [data[f] for f in cols]
+    async with transaction() as db:
+        cur = await db.execute(
+            f"INSERT INTO parts (car_id, source, status, agent_key_id, part_number, {', '.join(cols)}) "
+            f"VALUES (?, 'agent', 'wishlist', ?, ?, {', '.join('?' for _ in cols)})",
+            (car_id, agent_key_id, claim['part_number'], *values)
+        )
+        part_id = cur.lastrowid
+        await _insert_claim(db, part_id, agent_key_id, claim)
+        result = await _regate(db, part_id)
+        if result.no_fit:
+            raise NoFitError(result)
+    return part_id, result
+
+
+async def replace_claim(part_id: int, agent_key_id: int, claim: dict):
+    """New claim for an existing agent part; earlier verifications no longer apply."""
+    async with transaction() as db:
+        part = await _fetchone("SELECT agent_key_id FROM parts WHERE id = ?", (part_id,))
+        if part['agent_key_id'] != agent_key_id:
+            raise ValueError('Only the agent key that added this part can replace its claim')
+        await db.execute("UPDATE parts SET part_number = ? WHERE id = ?", (claim['part_number'], part_id))
+        await _insert_claim(db, part_id, agent_key_id, claim)
+        result = await _regate(db, part_id)
+        if result.no_fit:
+            raise NoFitError(result)
+    return result
+
+
+async def add_verification(part_id: int, claim_id: int, agent_key_id: int, verdict: str, quote: str):
+    async with transaction() as db:
+        claim = await get_current_claim(part_id)
+        if not claim:
+            raise ValueError('Part has no fitment claim to verify')
+        if claim['id'] != claim_id:
+            raise ValueError('The claim changed since the verification packet was read; read it again')
+        if claim['agent_key_id'] == agent_key_id:
+            raise ValueError('A claim must be verified by a different agent key than the one that made it')
+        if await _fetchone(
+            "SELECT 1 FROM fitment_verifications WHERE claim_id = ? AND agent_key_id = ? AND stale_at IS NULL",
+            (claim_id, agent_key_id)
+        ):
+            raise ValueError('This agent key has already given its verdict on this claim')
+        await db.execute(
+            "INSERT INTO fitment_verifications (claim_id, agent_key_id, verdict, quote) VALUES (?, ?, ?, ?)",
+            (claim['id'], agent_key_id, verdict, quote)
+        )
+        return await _regate(db, part_id)
+
+
+async def get_idempotent(agent_key_id: int, idem_key: str):
+    return await _fetchone(
+        "SELECT request_hash, status_code, response FROM agent_requests WHERE agent_key_id = ? AND idem_key = ?",
+        (agent_key_id, idem_key)
+    )
+
+
+async def store_idempotent(agent_key_id: int, idem_key: str, request_hash: str,
+                           status_code: int, response: str) -> None:
+    await _execute(
+        "INSERT OR IGNORE INTO agent_requests (agent_key_id, idem_key, request_hash, status_code, response) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (agent_key_id, idem_key, request_hash, status_code, response)
+    )

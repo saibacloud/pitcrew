@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from backend.auth import require_session
-from backend.db import init_db, close_db
+from backend.db import init_db, close_db, regate_all
 from backend.routes.auth import router as auth_router
 from backend.routes.cars import router as cars_router
 from backend.routes.journal import router as journal_router
@@ -25,6 +25,7 @@ from backend.routes.views import router as views_router
 from backend.routes.parts import router as parts_router
 from backend.routes.manuals import router as manuals_router
 from backend.routes.build import router as build_router
+from backend.routes.agent import router as agent_router
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,8 @@ os.makedirs(os.path.join(UPLOADS_DIR, 'views'), exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Catalogue domains come from the environment, so re-tier existing evidence on each start
+    await regate_all()
     log.info("PitCrew started")
     yield
     await close_db()
@@ -57,6 +60,9 @@ app = FastAPI(lifespan=lifespan)
 
 # Login/logout must stay reachable without a session
 app.include_router(auth_router)
+
+# Agents authenticate with their own bearer keys and never reach the owner routes
+app.include_router(agent_router)
 
 # Every other /api route requires a valid session cookie
 api_deps = [Depends(require_session)]
@@ -86,6 +92,12 @@ app.mount('/static', StaticFiles(directory=STATIC_DIR), name='static')
 @app.get('/')
 async def index():
     return FileResponse(os.path.join(STATIC_DIR, 'index.html'))
+
+
+# The mechanic agent contract; public so a new agent session can read it before it has a key
+@app.get('/llms.txt')
+async def llms_txt():
+    return FileResponse(os.path.join(STATIC_DIR, 'llms.txt'), media_type='text/plain; charset=utf-8')
 
 
 # ── Chat stub ────────────────────────────────────────────────────────────────

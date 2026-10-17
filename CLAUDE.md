@@ -65,12 +65,21 @@ session), only its markup/CSS/JS by inspection.
 
 - `backend/fitment.py` is the pure confidence gate for agent part claims (`verified` /
   `conditional` / `unverified`, computed server-side; stored level = min(claim, ceiling)).
-- `build_fields` holds the build sheet (superseded, never overwritten). A value change
-  flags agent parts whose `fitment_json` used that field (`needs_recheck`, verified → conditional).
+- `build_fields` holds the build sheet (superseded, never overwritten). Agent-written values
+  stay pending (`confirmed_at` NULL) until the owner confirms them; the gate sees confirmed
+  values only. A confirmed-value change flags agent parts whose `fitment_json` used that
+  field (`needs_recheck`), stales their verifications and re-gates them.
 - Agent parts (`parts.source='agent'`) cannot leave the wishlist unless `verified`, or the owner
   overrides (409, then `override_fitment: true`, recorded in `override_at`). Owner parts are ungated.
-- The AI mechanic is an external agent (Claude Code / Codex) working through a published
-  contract; pitcrew itself makes no confidence-bearing LLM calls. Gemini is doc lookup only.
+- The AI mechanic is an external agent session (Claude Code / Codex) that reads `/llms.txt`
+  (`static/llms.txt`) and works through `/api/agent/*` with a bearer key
+  (`python -m backend.agent_keys create LABEL | list | revoke ID`). Pitcrew makes no
+  confidence-bearing LLM calls; the in-app chat / Doc search (Gemini) is lookup only.
+- Agents write gated parts via `fitment_claims`; `verified` also needs a blind
+  `fitment_verifications` row from a different key. Evidence comes only from `sources`
+  pitcrew captured itself (`backend/fetch.py`: public https only) or manual pages; tier is
+  `catalogue` for `PITCREW_CATALOGUE_DOMAINS`, or the owner-set manual `tier`.
+- `static/llms.txt` is the agent contract: keep it in step with `backend/routes/agent.py`.
 - Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
 
 ## Known state

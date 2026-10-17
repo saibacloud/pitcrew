@@ -5,6 +5,7 @@
 import json
 import re
 from typing import NamedTuple, Optional
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 # ── Build sheet fields ───────────────────────────────────────────────────────
 
@@ -114,10 +115,72 @@ def _squash(text: str) -> str:
     return ' '.join((text or '').split()).casefold()
 
 
+MIN_QUOTE_ALNUM = 3
+
+
 def quote_in_text(quote: str, text: str) -> bool:
-    """Verbatim containment, ignoring case and runs of whitespace."""
+    """Verbatim containment, ignoring case and runs of whitespace. Quotes need 3+ letters or digits."""
     q = _squash(quote)
-    return bool(q) and q in _squash(text)
+    return len(_ALNUM.findall(q.upper())) >= MIN_QUOTE_ALNUM and q in _squash(text)
+
+
+def bind_excerpt(excerpt: str, content: str, max_lines: int) -> Optional[tuple[int, int]]:
+    """Line range [start, end) of content that the excerpt matches as whole lines, or None.
+
+    Binding to whole lines stops an excerpt from splicing one row's number onto another
+    row's applicability, or trimming a row before its supersession note.
+    """
+    want = [_squash(line) for line in (excerpt or '').split('\n') if line.strip()]
+    if not want or len(want) > max_lines:
+        return None
+    have = [_squash(line) for line in (content or '').split('\n')]
+    for i in range(len(have) - len(want) + 1):
+        if have[i:i + len(want)] == want:
+            return i, i + len(want)
+    return None
+
+
+def _month_forms(month: str) -> set[str]:
+    year, mm = month.split('-')
+    return {f'{mm}/{year}', f'{mm}.{year}', f'{mm}-{year}', f'{year}-{mm}', f'{year}/{mm}',
+            f'{year}.{mm}', f'{mm}/{year[2:]}', f'{mm}.{year[2:]}'}
+
+
+def predicate_quote_ok(pred: dict) -> bool:
+    """The predicate's value must be written in its quote, so a quote cannot be unrelated text."""
+    q = _squash(pred.get('quote') or '')
+    if pred.get('op') == 'range':
+        bounds = [pred[b] for b in ('min', 'max') if pred.get(b)]
+        return all(any(form in q for form in _month_forms(b)) for b in bounds)
+    values = pred.get('values') if pred.get('op') == 'in' else [pred.get('value')]
+    return all(_squash(str(v)) in q for v in values or [])
+
+
+def value_in_quote(field: str, value, quote: str) -> bool:
+    """A sourced build value must be written in the quote it is read from."""
+    q = _squash(quote or '')
+    kind = BUILD_FIELDS[field]['kind']
+    if kind == 'month':
+        return any(form in q for form in _month_forms(value))
+    if kind == 'options':
+        return all(_squash(o['code']) in q for o in value)
+    if kind == 'bool':
+        return bool(q)
+    return _squash(str(value)) in q
+
+
+def _url_tokens(url: str) -> set[str]:
+    """Decoded path segments and query values of a URL, 4+ characters."""
+    parts = urlsplit(url or '')
+    tokens = [unquote(seg) for seg in parts.path.split('/')]
+    tokens += [v for _, v in parse_qsl(parts.query)]
+    return {_squash(t) for t in tokens if len(t.strip()) >= 4}
+
+
+def excerpt_echoes_url(excerpt: str, url: str) -> bool:
+    """True when the excerpt repeats text from the page's own URL, e.g. a search page echoing its query."""
+    text = _squash(excerpt)
+    return any(token in text for token in _url_tokens(url))
 
 
 # Catalogue wording for a replaced number; the newest number must be resolved first
@@ -213,8 +276,9 @@ def gate(claim: dict, build: dict, evidence: Optional[dict], verification: Optio
 
     claim:        {part_number, claimed, agent_id, depends_on: [field], applies_when: [predicate]}
     build:        decoded build sheet, field -> value (unset fields absent or None)
-    evidence:     {kind: web_page|manual_page, tier, excerpt, extracted_by: text|ocr} (bound excerpt)
-    verification: {verdict: explicit_fit|ambiguous|no_fit, quote, agent_id} from a blind second agent
+    evidence:     {kind: web_page|manual_page, tier, excerpt, extracted_by: text|ocr, url} (bound excerpt)
+    verification: {verdict: explicit_fit|ambiguous|no_fit, quote, agent_id} from a blind second agent;
+                  the caller passes the most cautious live verdict
     """
     level, reasons, open_fields, no_fit = 'verified', [], [], []
 
@@ -239,6 +303,8 @@ def gate(claim: dict, build: dict, evidence: Optional[dict], verification: Optio
             cap('conditional', 'evidence text came from OCR')
         if _SUPERSEDED.search(excerpt):
             cap('conditional', 'evidence mentions a superseded number')
+        if evidence.get('url') and excerpt_echoes_url(excerpt, evidence['url']):
+            cap('unverified', 'excerpt repeats text from the page URL')
 
     preds = claim.get('applies_when') or []
     if not preds:
@@ -251,6 +317,9 @@ def gate(claim: dict, build: dict, evidence: Optional[dict], verification: Optio
             continue
         if not quote_in_text(pred['quote'], excerpt):
             cap('unverified', f'applicability quote for {pred["field"]} not in the evidence excerpt')
+            continue
+        if not predicate_quote_ok(pred):
+            cap('unverified', f'applicability quote for {pred["field"]} does not state the predicate value')
             continue
         result = evaluate_predicate(pred, build)
         if result is False:

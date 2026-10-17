@@ -46,6 +46,15 @@ function fitmentBadges(p) {
     return html;
 }
 
+const ORIGIN_LABELS = { oem: 'OEM', oe_supplier: 'OE supplier', aftermarket: 'aftermarket' };
+
+// Brand and origin for agent-sourced parts, e.g. "Brembo · aftermarket"
+function partProvenance(p) {
+    if (p.source !== 'agent') return '';
+    const bits = [p.brand, ORIGIN_LABELS[p.origin]].filter(Boolean);
+    return bits.length ? `<span class="part-provenance">${escapeHtml(bits.join(' · '))}</span>` : '';
+}
+
 function partLink(url) {
     if (!url) return '-';
     if (!isHttpsUrl(url)) return escapeHtml(url);
@@ -61,7 +70,7 @@ function renderCartParts() {
 
     const rows = visible.map(p => `
         <tr>
-            <td>${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.name)}${partProvenance(p)}</td>
             <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}</td>
             <td>${escapeHtml(p.part_number || '-')}</td>
             <td>${p.quantity || 1}</td>

@@ -1177,6 +1177,11 @@ main {
     color: var(--muted);
 }
 
+.manual-card-tier {
+    margin-top: 10px;
+    max-width: 100%;
+}
+
 /* ── PDF Viewer ───────────────────────────────────────────────────────────── */
 
 .pdf-viewer-overlay {
@@ -1751,6 +1756,12 @@ main {
     vertical-align: middle;
 }
 
+.part-provenance {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+}
+
 .fit-badge[title] {
     cursor: help;
 }
@@ -1779,6 +1790,16 @@ main {
 
 .build-row-missing {
     border-left-color: #f5c842;
+}
+
+.build-row-pending {
+    border-left-color: var(--accent);
+    border-left-style: dashed;
+}
+
+.build-confirm {
+    padding: 2px 10px;
+    font-size: 12px;
 }
 
 .build-label {

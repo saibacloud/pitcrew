@@ -92,7 +92,7 @@ async def require_session(pitcrew_session: str | None = Cookie(default=None)):
 
 # ── Simple in-memory rate limiter ───────────────────────────────────────────
 
-class _RateLimiter:
+class RateLimiter:
     """Token-bucket style per-IP limiter."""
 
     def __init__(self, max_calls: int, window_seconds: int, message: str):
@@ -121,10 +121,10 @@ def client_ip(request: Request) -> str:
 
 
 # 10 AI calls per minute per IP
-ai_limiter = _RateLimiter(10, 60, 'Too many AI requests — try again shortly')
+ai_limiter = RateLimiter(10, 60, 'Too many AI requests — try again shortly')
 
 # 8 login attempts per 15 minutes per IP — brute-force brake on the PIN
-login_limiter = _RateLimiter(8, 15 * 60, 'Too many attempts — try again later')
+login_limiter = RateLimiter(8, 15 * 60, 'Too many attempts — try again later')
 
 
 async def rate_limit_ai(request: Request):
