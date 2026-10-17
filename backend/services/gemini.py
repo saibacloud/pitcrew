@@ -3,6 +3,7 @@
 
 import asyncio
 import io
+import json
 import logging
 import math
 import os
@@ -148,6 +149,140 @@ def build_docsearch_prompt(car: dict, question: str) -> str:
         f"Answer this question using only the documents above.\n\n"
         f"Question: {question}"
     )
+
+
+# ── In-app chat ──────────────────────────────────────────────────────────────
+
+# Fixed rules for every chat answer. The car contract that follows them is rebuilt from
+# the database for every message, so no answer is ever given without it.
+CHAT_SYSTEM_INSTRUCTION = """\
+You are the pitcrew workshop assistant for one specific car, described in the CAR CONTRACT below. You MUST follow these rules in every answer.
+
+The car:
+- Answer for this exact car only. The car contract is the source of truth for its identity. Confirmed build sheet values are fact; do not second-guess them.
+- If the answer depends on something the contract does not settle (an unconfirmed or missing build field, an option, a production date split), say which, give the answer for each variant, and tell the owner how to check.
+- Use the service history and installed parts: they change what is due and what fits.
+
+Accuracy:
+- Use Google Search to check every fluid specification, capacity, torque value, part number and procedure against a source for this exact variant before stating it.
+- Never invent or pattern-guess a part number, specification or capacity. If you cannot verify a value, write "not verified" beside it.
+- Part numbers you mention are for research only. Fitment for ordering is verified separately in the pitcrew cart; never tell the owner a part is confirmed to fit.
+
+Tools and materials:
+- The owner's inventory is listed in the contract. Prefer what they already have, and say when they already have what a step needs.
+- Name every tool and consumable specifically, with size or specification (e.g. "14 mm socket", "brake and parts cleaner", "ATF meeting the specification in the manual"), so it can be tracked.
+- Mention safety briefly where it matters (supporting the car on stands, hot fluids, disposal).
+
+Format: concise, **bold** section headings and "- " bullet lists. No tables and no preamble."""
+
+
+def car_contract(car: dict, build: dict, pending: dict, parts: list[dict],
+                 services: list[dict], inventory: list[dict]) -> str:
+    """The per-car context block every chat answer is given."""
+    lines = ['CAR CONTRACT', '', 'Identity:']
+    identity = [('Year', car.get('year')), ('Make', car.get('make')), ('Model', car.get('model')),
+                ('Trim', car.get('trim')), ('Engine', car.get('engine')), ('Colour', car.get('color')),
+                ('VIN', car.get('vin')), ('Options / package', car.get('options')),
+                ("Owner's notes", car.get('notes'))]
+    lines += [f'- {label}: {value}' for label, value in identity if value not in (None, '')]
+
+    def fmt(value):
+        if isinstance(value, list):
+            return ', '.join(f"{o['code']} ({o['description']})" if o.get('description') else o['code']
+                             for o in value)
+        if isinstance(value, bool):
+            return 'yes' if value else 'no'
+        return str(value)
+
+    lines += ['', 'Build sheet (confirmed):']
+    lines += [f'- {field}: {fmt(value)}' for field, value in build.items()] or ['- none confirmed']
+    if pending:
+        lines += ['', 'Build sheet (unconfirmed, do not rely on):']
+        lines += [f'- {field}: {fmt(value)}' for field, value in pending.items()]
+
+    installed = [p for p in parts if p.get('status') == 'installed']
+    planned = [p for p in parts if p.get('status') != 'installed']
+    if installed:
+        lines += ['', 'Installed parts:']
+        lines += [f"- {p['name']}" + (f" ({p['part_number']})" if p.get('part_number') else '') for p in installed]
+    if planned:
+        lines += ['', 'Parts in the cart (not yet installed):']
+        lines += [f"- {p['name']}" + (f" ({p['part_number']})" if p.get('part_number') else '')
+                  + f" [{p.get('status')}" + (f", fitment {p['confidence']}" if p.get('confidence') else '') + ']'
+                  for p in planned]
+    if services:
+        lines += ['', 'Recent service log:']
+        lines += [f"- {s['created_at'][:10]}" + (f" at {s['odometer']} km" if s.get('odometer') else '')
+                  + f": {s['title']}" for s in services]
+    lines += ['', "Owner's inventory (tools, consumables, loose parts):"]
+    lines += [f"- {i['name']}" + (f" ({i['detail']})" if i.get('detail') else '') for i in inventory] or ['- none recorded']
+    return '\n'.join(lines)
+
+
+async def chat(contract: str, history: list[dict], message: str) -> 'Answer':
+    """One chat answer grounded with Google Search; history is [{role, body}] oldest first."""
+    contents = [types.Content(role=m['role'], parts=[types.Part.from_text(text=m['body'])]) for m in history]
+    contents.append(types.Content(role='user', parts=[types.Part.from_text(text=message)]))
+    config = types.GenerateContentConfig(
+        system_instruction=f'{CHAT_SYSTEM_INSTRUCTION}\n\n{contract}',
+        tools=[types.Tool(google_search=types.GoogleSearch())],
+    )
+    return await _generate(contents, config, 'chat')
+
+
+INVENTORY_SYSTEM_INSTRUCTION = """\
+You keep the owner's garage inventory: tools, consumables, fluids and loose parts they physically have. From the owner's latest message, and the assistant message before it, list inventory changes.
+
+- add, basis "stated": the owner says they have, bought or received an item.
+- add, basis "inferred": the owner says they completed a step, and the assistant's previous message said that step needs a specific item. Doing the step means they have it. Put the assistant's words naming the item in step_quote.
+- remove: the owner says they used up, ran out of, broke, lost or returned an item.
+- Never add from questions, plans, wishes or hypotheticals ("should I buy", "I'll get", "do I need").
+- Never add the car itself or parts already fitted to it.
+- quote: the owner's exact words this change rests on, copied verbatim.
+- name: the plain item name ("socket", "degreaser", "brake fluid"). detail: size, specification or brand when given ("14 mm", "DOT 4"), else null.
+- Skip items already in the current inventory unless removing them. Return an empty list when nothing changes."""
+
+INVENTORY_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'changes': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'action': {'type': 'string', 'enum': ['add', 'remove']},
+                    'name': {'type': 'string'},
+                    'kind': {'type': 'string', 'enum': ['tool', 'consumable', 'fluid', 'part', 'other']},
+                    'detail': {'type': ['string', 'null']},
+                    'basis': {'type': 'string', 'enum': ['stated', 'inferred']},
+                    'quote': {'type': 'string'},
+                    'step_quote': {'type': ['string', 'null']},
+                },
+                'required': ['action', 'name', 'kind', 'detail', 'basis', 'quote', 'step_quote'],
+            },
+        },
+    },
+    'required': ['changes'],
+}
+
+
+async def extract_inventory(previous_answer: str | None, message: str, inventory: list[dict]) -> list[dict]:
+    """Raw inventory changes proposed for one owner message; the caller validates them."""
+    held = '\n'.join(f"- {i['name']}" + (f" ({i['detail']})" if i.get('detail') else '') for i in inventory)
+    prompt = (
+        f"Current inventory:\n{held or '- none'}\n\n"
+        f"Assistant's previous message:\n{previous_answer or '(none)'}\n\n"
+        f"Owner's latest message:\n{message}"
+    )
+    config = types.GenerateContentConfig(
+        system_instruction=INVENTORY_SYSTEM_INSTRUCTION,
+        response_mime_type='application/json',
+        response_json_schema=INVENTORY_SCHEMA,
+    )
+    t0 = time.monotonic()
+    response = await client.aio.models.generate_content(model=MODEL, contents=prompt, config=config)
+    log.info("Gemini inventory extraction completed in %.1fs", time.monotonic() - t0)
+    return json.loads(response.text or '{}').get('changes') or []
 
 
 # ── Image helpers ────────────────────────────────────────────────────────────

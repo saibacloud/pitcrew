@@ -61,8 +61,42 @@ flags, tamper rejection, logout, rate limit) plus a live curl login round trip.
 The login **page** was not verified in a browser (no browser tooling this
 session), only its markup/CSS/JS by inspection.
 
+## Fitment gate
+
+- `backend/fitment.py` is the pure confidence gate for agent part claims (`verified` /
+  `conditional` / `unverified`, computed server-side; stored level = min(claim, ceiling)).
+- `build_fields` holds the build sheet (superseded, never overwritten). Agent-written values
+  stay pending (`confirmed_at` NULL) until the owner confirms them; the gate sees confirmed
+  values only. A confirmed-value change flags agent parts whose `fitment_json` used that
+  field (`needs_recheck`), stales their verifications and re-gates them.
+- Agent parts (`parts.source='agent'`) cannot leave the wishlist unless `verified`, or the owner
+  overrides (409, then `override_fitment: true`, recorded in `override_at`). Owner parts are ungated.
+- The AI mechanic is an external agent session (Claude Code / Codex) that reads `/llms.txt`
+  (`static/llms.txt`) and works through `/api/agent/*` with a bearer key
+  (`python -m backend.agent_keys create LABEL | list | revoke ID`). Pitcrew makes no
+  confidence-bearing LLM calls; the in-app chat / Doc search (Gemini) is lookup only.
+- Agents write gated parts via `fitment_claims`; `verified` also needs a blind
+  `fitment_verifications` row from a different key. Evidence comes only from `sources`
+  pitcrew captured itself (`backend/fetch.py`: public https only) or manual pages. The
+  capturing agent rates each source's authority (`tier` + `tier_reason`) and the blind
+  verifier must also judge it authoritative. Do not add allowlists or other limits on what
+  the agent may search or cite; reliability is the agent's judgement, checked by the verifier.
+- `static/llms.txt` is the agent contract: keep it in step with `backend/routes/agent.py`.
+- Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
+
+## In-app chat and inventory
+
+- Chat (`backend/routes/chat.py`): logged threads (`chat_threads`, `chat_messages`). Every
+  answer is Gemini + Google Search with `CHAT_SYSTEM_INSTRUCTION` plus `car_contract()` rebuilt
+  from the DB per message (identity, VIN, colour, confirmed/pending build sheet, parts,
+  service log, inventory). Chat answers are research, never fitment evidence.
+- Inventory (`inventory`, garage-wide): a second Gemini call per message extracts adds/removes
+  from the owner's message and the previous answer, run in parallel with the answer.
+  `valid_changes` keeps only changes whose quote is the owner's verbatim words naming the item;
+  inferred items must also be named verbatim in the previous answer. Undo is soft delete/restore.
+- The Journal tab's Converse list holds agent session summaries (`type='converse'`).
+
 ## Known state
 
-- The Converse tab is still a stub (`/api/chat`). Deliberately deferred.
 - Login is a 6-12 digit PIN (`PITCREW_PIN_HASH`, replacing `PITCREW_CODE_HASH`).
   Sessions live in the `sessions` table and logout revokes them server-side.

@@ -1732,6 +1732,182 @@ main {
 .status-select.status-received  { background: #e8f5e9; border-color: #66bb6a; color: #1b5e20; }
 .status-select.status-installed { background: #e3f2fd; border-color: #42a5f5; color: #0d47a1; }
 
+/* ── Fitment badges (agent-sourced parts) ────────────────────────────────── */
+
+.parts-table-status {
+    white-space: nowrap;
+}
+
+.fit-badge {
+    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-right: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    vertical-align: middle;
+}
+
+.part-provenance {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.fit-badge[title] {
+    cursor: help;
+}
+
+.fit-badge.fit-verified    { background: #e8f5e9; border-color: #66bb6a; color: #1b5e20; }
+.fit-badge.fit-conditional { background: #fffde7; border-color: #f5c842; color: #7a6200; }
+.fit-badge.fit-unverified  { background: #fdecea; border-color: #ef9a9a; color: #8e1c1c; }
+.fit-badge.fit-recheck     { background: var(--bg); border-style: dashed; color: var(--text); }
+
+/* ── Build sheet ─────────────────────────────────────────────────────────── */
+
+.build-sheet {
+    margin-top: 36px;
+    max-width: 720px;
+}
+
+.build-row {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0 8px 10px;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent;
+}
+
+.build-row-missing {
+    border-left-color: #f5c842;
+}
+
+.build-row-pending {
+    border-left-color: var(--accent);
+    border-left-style: dashed;
+}
+
+.build-confirm {
+    padding: 2px 10px;
+    font-size: 12px;
+}
+
+.build-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.build-input input[type="text"],
+.build-input input[type="month"],
+.build-input select {
+    background: var(--surface);
+    border: 1px solid #d0d0d0;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 16px;
+    padding: 7px 10px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    width: 100%;
+    min-width: 0;
+}
+
+.build-input input:focus,
+.build-input select:focus {
+    border-color: var(--accent);
+}
+
+.build-input input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.build-options-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.build-option-row {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.build-option-add {
+    margin-top: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+.build-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 64px;
+    justify-content: flex-end;
+}
+
+.build-source {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--accent-dim);
+}
+
+.build-clear {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.build-clear:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+@media (max-width: 640px) {
+    .build-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 10px;
+    }
+
+    .build-label {
+        grid-column: 1;
+    }
+
+    .build-input {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .build-meta {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
 /* ── Manual tab hint ─────────────────────────────────────────────────────── */
 
 .manual-tab-hint {
@@ -1885,4 +2061,252 @@ main {
 .pin-research-result a {
     color: inherit;
     text-decoration: underline;
+}
+
+/* ── Chat ────────────────────────────────────────────────────────────────── */
+
+#section-chat,
+#section-inventory {
+    max-width: 760px;
+}
+
+.chat-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.chat-bar select,
+.inv-form select,
+.inv-row--edit select {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.chat-bar .btn {
+    flex: none;
+    white-space: nowrap;
+}
+
+#section-chat .btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.chat-msg {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.chat-msg--user {
+    align-items: flex-end;
+}
+
+.chat-msg--model {
+    align-items: stretch;
+}
+
+.chat-bubble {
+    max-width: 85%;
+    padding: 9px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px 12px 4px 12px;
+    font-size: 14px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.chat-composer {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.chat-composer textarea {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 16px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 48px;
+}
+
+.chat-composer textarea:focus,
+.inv-form input:focus,
+.inv-row--edit input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* ── Inventory change chips ──────────────────────────────────────────────── */
+
+.inv-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 6px;
+    max-width: 85%;
+}
+
+.inv-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 2px 1px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--text);
+}
+
+.inv-chip--inferred {
+    border-style: dashed;
+    font-style: italic;
+    color: var(--muted);
+}
+
+.inv-chip--undone > span {
+    text-decoration: line-through;
+    color: var(--muted);
+}
+
+.inv-chip[title] {
+    cursor: help;
+}
+
+.inv-chip-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-style: normal;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.inv-chip-btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+/* ── Inventory ───────────────────────────────────────────────────────────── */
+
+.inv-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.inv-form input,
+.inv-row--edit input {
+    flex: 2 1 160px;
+    min-width: 0;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 16px;
+    font-family: inherit;
+}
+
+.inv-form select,
+.inv-row--edit select {
+    flex: 1 1 120px;
+}
+
+.inv-group {
+    margin-bottom: 22px;
+}
+
+.inv-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.inv-row:last-child {
+    border-bottom: none;
+}
+
+.inv-main {
+    flex: 1 1 200px;
+    min-width: 0;
+    font-size: 14px;
+    word-break: break-word;
+}
+
+.inv-detail {
+    margin-left: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.inv-basis {
+    margin-right: 0;
+}
+
+.inv-basis--inferred {
+    border-style: dashed;
+    font-style: italic;
+}
+
+.inv-basis[title] {
+    cursor: help;
+}
+
+.inv-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.inv-actions .btn {
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+@media (max-width: 640px) {
+    .chat-bar .btn {
+        padding: 8px 12px;
+    }
+
+    .chat-bubble,
+    .inv-chips {
+        max-width: 92%;
+    }
+
+    .inv-form .btn {
+        width: 100%;
+    }
 }

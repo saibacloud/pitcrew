@@ -7,6 +7,8 @@ import { initJournal } from './journal.js';
 import { initPins } from './pins.js';
 import { initCart } from './cart.js';
 import { initManuals } from './manuals.js';
+import { initChat } from './chat.js';
+import { initInventory } from './inventory.js';
 import { initDialogs } from './dialogs.js';
 import { initLogin, showLogin } from './login.js';
 
@@ -73,6 +75,16 @@ export function escapeHtml(str) {
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+}
+
+// For double-quoted attribute values
+export function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+// Same scheme rule as renderMarkdown links: only https URLs become links
+export function isHttpsUrl(str) {
+    return /^https:\/\/[^\s"]+$/.test(str || '');
 }
 
 export function aiLoadingHtml(text = 'Thinking') {
@@ -179,6 +191,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initPins();
     initCart();
     initManuals();
+    initChat();
+    initInventory();
     initLogin(enterApp);
     document.getElementById('lock-btn').addEventListener('click', lock);
 

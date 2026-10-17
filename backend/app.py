@@ -4,12 +4,10 @@
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 from dotenv import load_dotenv
 
@@ -24,6 +22,9 @@ from backend.routes.journal import router as journal_router
 from backend.routes.views import router as views_router
 from backend.routes.parts import router as parts_router
 from backend.routes.manuals import router as manuals_router
+from backend.routes.build import router as build_router
+from backend.routes.agent import router as agent_router
+from backend.routes.chat import router as chat_router
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,9 @@ app = FastAPI(lifespan=lifespan)
 # Login/logout must stay reachable without a session
 app.include_router(auth_router)
 
+# Agents authenticate with their own bearer keys and never reach the owner routes
+app.include_router(agent_router)
+
 # Every other /api route requires a valid session cookie
 api_deps = [Depends(require_session)]
 app.include_router(cars_router, dependencies=api_deps)
@@ -64,6 +68,8 @@ app.include_router(journal_router, dependencies=api_deps)
 app.include_router(views_router, dependencies=api_deps)
 app.include_router(parts_router, dependencies=api_deps)
 app.include_router(manuals_router, dependencies=api_deps)
+app.include_router(build_router, dependencies=api_deps)
+app.include_router(chat_router, dependencies=api_deps)
 
 # Uploads (manuals, photos) sit under /static/uploads but need a session.
 # Registered before the static mount so it takes precedence for these paths.
@@ -86,16 +92,7 @@ async def index():
     return FileResponse(os.path.join(STATIC_DIR, 'index.html'))
 
 
-# ── Chat stub ────────────────────────────────────────────────────────────────
-
-class ChatRequest(BaseModel):
-    message: str
-    car_id: Optional[int] = None
-
-
-@app.post('/api/chat', dependencies=[Depends(require_session)])
-async def chat(req: ChatRequest):
-    return {
-        'response': f'(stub) you said: {req.message}',
-        'citations': [],
-    }
+# The mechanic agent contract; public so a new agent session can read it before it has a key
+@app.get('/llms.txt')
+async def llms_txt():
+    return FileResponse(os.path.join(STATIC_DIR, 'llms.txt'), media_type='text/plain; charset=utf-8')

@@ -1,6 +1,6 @@
 // PitCrew — cart (parts list, add/edit/delete)
 
-import { activeCar, api, toast, escapeHtml } from './app.js';
+import { activeCar, api, toast, escapeHtml, escapeAttr, isHttpsUrl, errorMessage } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let cartParts = [];
@@ -26,6 +26,41 @@ function filterCartCategory(cat, btnEl) {
     renderCartParts();
 }
 
+const CONFIDENCE = ['verified', 'conditional', 'unverified'];
+
+function openFields(p) {
+    try {
+        const fields = JSON.parse(p.open_fields || '[]');
+        return Array.isArray(fields) ? fields : [];
+    } catch { return []; }
+}
+
+// Agent-sourced parts carry fitment confidence; owner parts render no badges
+function fitmentBadges(p) {
+    if (p.source !== 'agent') return '';
+    const level = CONFIDENCE.includes(p.confidence) ? p.confidence : 'unverified';
+    const open = openFields(p);
+    const title = open.length ? ` title="${escapeAttr('Open: ' + open.join(', '))}"` : '';
+    let html = `<span class="fit-badge fit-${level}"${title}>${level}</span>`;
+    if (p.needs_recheck) html += '<span class="fit-badge fit-recheck">recheck</span>';
+    return html;
+}
+
+const ORIGIN_LABELS = { oem: 'OEM', oe_supplier: 'OE supplier', aftermarket: 'aftermarket' };
+
+// Brand and origin for agent-sourced parts, e.g. "Brembo · aftermarket"
+function partProvenance(p) {
+    if (p.source !== 'agent') return '';
+    const bits = [p.brand, ORIGIN_LABELS[p.origin]].filter(Boolean);
+    return bits.length ? `<span class="part-provenance">${escapeHtml(bits.join(' · '))}</span>` : '';
+}
+
+function partLink(url) {
+    if (!url) return '-';
+    if (!isHttpsUrl(url)) return escapeHtml(url);
+    return `<a href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`;
+}
+
 function renderCartParts() {
     const list = document.getElementById('cart-parts-list');
     if (!list) return;
@@ -35,15 +70,15 @@ function renderCartParts() {
 
     const rows = visible.map(p => `
         <tr>
-            <td>${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.name)}${partProvenance(p)}</td>
             <td>${p.created_at ? new Date(p.created_at).toLocaleDateString() : '-'}</td>
             <td>${escapeHtml(p.part_number || '-')}</td>
             <td>${p.quantity || 1}</td>
             <td>${p.price != null ? '$' + Number(p.price).toFixed(2) : '-'}</td>
-            <td>${p.url ? `<a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.url)}</a>` : '-'}</td>
+            <td>${partLink(p.url)}</td>
             <td>${escapeHtml(p.category || '-')}</td>
             <td>${escapeHtml(p.notes || '-')}</td>
-            <td><select class="status-select status-${p.status || 'wishlist'}" data-action="update-status" data-id="${p.id}"><option value="wishlist"${(!p.status || p.status === 'wishlist') ? ' selected' : ''}>Wishlist</option><option value="ordered"${p.status === 'ordered' ? ' selected' : ''}>Ordered</option><option value="received"${p.status === 'received' ? ' selected' : ''}>Received</option><option value="installed"${p.status === 'installed' ? ' selected' : ''}>Installed</option></select></td>
+            <td class="parts-table-status">${fitmentBadges(p)}<select class="status-select status-${p.status || 'wishlist'}" data-action="update-status" data-id="${p.id}"><option value="wishlist"${(!p.status || p.status === 'wishlist') ? ' selected' : ''}>Wishlist</option><option value="ordered"${p.status === 'ordered' ? ' selected' : ''}>Ordered</option><option value="received"${p.status === 'received' ? ' selected' : ''}>Received</option><option value="installed"${p.status === 'installed' ? ' selected' : ''}>Installed</option></select></td>
             <td class="parts-table-actions">
                 <button class="btn btn-ghost" data-action="edit-part" data-id="${p.id}">Edit</button>
                 <button class="btn btn-ghost" data-action="delete-part" data-id="${p.id}">Delete</button>
@@ -113,15 +148,24 @@ async function deleteCartPart(id) {
     } catch (e) { toast('Error removing part'); }
 }
 
-async function updatePartStatus(id, status) {
+// 409 means the agent's fitment is unverified; the owner can override it
+async function updatePartStatus(id, status, override = false) {
     try {
-        const updated = await api('PATCH', `/api/parts/${id}`, { status });
+        const body = override ? { status, override_fitment: true } : { status };
+        const updated = await api('PATCH', `/api/parts/${id}`, body);
         const i = cartParts.findIndex(p => p.id === id);
         if (i >= 0) cartParts[i] = updated;
         toast('Status updated');
         renderCartParts();
     } catch (e) {
-        toast('Error updating status');
+        if (e.status === 409 && !override) {
+            if (await pitcrewConfirm('Fitment not verified. Change status anyway?', 'Change')) {
+                return updatePartStatus(id, status, true);
+            }
+            renderCartParts();
+            return;
+        }
+        toast(errorMessage(e, 'Error updating status'));
         renderCartParts();
     }
 }
