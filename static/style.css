@@ -1732,6 +1732,166 @@ main {
 .status-select.status-received  { background: #e8f5e9; border-color: #66bb6a; color: #1b5e20; }
 .status-select.status-installed { background: #e3f2fd; border-color: #42a5f5; color: #0d47a1; }
 
+/* ── Fitment badges (agent-sourced parts) ────────────────────────────────── */
+
+.parts-table-status {
+    white-space: nowrap;
+}
+
+.fit-badge {
+    display: inline-block;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-right: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface);
+    vertical-align: middle;
+}
+
+.fit-badge[title] {
+    cursor: help;
+}
+
+.fit-badge.fit-verified    { background: #e8f5e9; border-color: #66bb6a; color: #1b5e20; }
+.fit-badge.fit-conditional { background: #fffde7; border-color: #f5c842; color: #7a6200; }
+.fit-badge.fit-unverified  { background: #fdecea; border-color: #ef9a9a; color: #8e1c1c; }
+.fit-badge.fit-recheck     { background: var(--bg); border-style: dashed; color: var(--text); }
+
+/* ── Build sheet ─────────────────────────────────────────────────────────── */
+
+.build-sheet {
+    margin-top: 36px;
+    max-width: 720px;
+}
+
+.build-row {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0 8px 10px;
+    border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent;
+}
+
+.build-row-missing {
+    border-left-color: #f5c842;
+}
+
+.build-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.build-input input[type="text"],
+.build-input input[type="month"],
+.build-input select {
+    background: var(--surface);
+    border: 1px solid #d0d0d0;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 16px;
+    padding: 7px 10px;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.15s;
+    width: 100%;
+    min-width: 0;
+}
+
+.build-input input:focus,
+.build-input select:focus {
+    border-color: var(--accent);
+}
+
+.build-input input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
+.build-options-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.build-option-row {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) auto;
+    gap: 6px;
+    align-items: center;
+}
+
+.build-option-add {
+    margin-top: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+}
+
+.build-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 64px;
+    justify-content: flex-end;
+}
+
+.build-source {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--accent-dim);
+}
+
+.build-clear {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.build-clear:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+@media (max-width: 640px) {
+    .build-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px 10px;
+    }
+
+    .build-label {
+        grid-column: 1;
+    }
+
+    .build-input {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .build-meta {
+        grid-column: 2;
+        grid-row: 1;
+    }
+}
+
 /* ── Manual tab hint ─────────────────────────────────────────────────────── */
 
 .manual-tab-hint {

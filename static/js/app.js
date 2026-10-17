@@ -75,6 +75,16 @@ export function escapeHtml(str) {
         .replace(/>/g, '&gt;');
 }
 
+// For double-quoted attribute values
+export function escapeAttr(str) {
+    return escapeHtml(str).replace(/"/g, '&quot;');
+}
+
+// Same scheme rule as renderMarkdown links: only https URLs become links
+export function isHttpsUrl(str) {
+    return /^https:\/\/[^\s"]+$/.test(str || '');
+}
+
 export function aiLoadingHtml(text = 'Thinking') {
     return `<div class="ai-loading">${text}<div class="ai-loading-dots"><span></span><span></span><span></span></div></div>`;
 }

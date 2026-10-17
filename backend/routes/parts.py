@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from backend.db import (
     get_car, get_part, get_parts, count_parts,
-    create_part, update_part, soft_delete_part,
+    create_part, update_part, soft_delete_part, FitmentGateError,
 )
 
 router = APIRouter(prefix='/api', tags=['parts'])
@@ -35,6 +35,8 @@ class PartPatch(BaseModel):
     category: Optional[str] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    # Owner acknowledges ordering an agent part whose fitment is not verified
+    override_fitment: bool = False
 
 
 @router.get('/cars/{car_id}/parts')
@@ -69,7 +71,12 @@ async def edit_part(part_id: int, body: PartPatch):
     if not part:
         raise HTTPException(404, 'Part not found')
     try:
-        rows = await update_part(part_id, body.model_dump(exclude_none=True))
+        rows = await update_part(
+            part_id, body.model_dump(exclude_none=True, exclude={'override_fitment'}),
+            override_fitment=body.override_fitment,
+        )
+    except FitmentGateError as e:
+        raise HTTPException(409, str(e))
     except ValueError as e:
         raise HTTPException(400, str(e))
     if rows == 0:

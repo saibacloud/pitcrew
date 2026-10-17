@@ -61,6 +61,18 @@ flags, tamper rejection, logout, rate limit) plus a live curl login round trip.
 The login **page** was not verified in a browser (no browser tooling this
 session), only its markup/CSS/JS by inspection.
 
+## Fitment gate
+
+- `backend/fitment.py` is the pure confidence gate for agent part claims (`verified` /
+  `conditional` / `unverified`, computed server-side; stored level = min(claim, ceiling)).
+- `build_fields` holds the build sheet (superseded, never overwritten). A value change
+  flags agent parts whose `fitment_json` used that field (`needs_recheck`, verified → conditional).
+- Agent parts (`parts.source='agent'`) cannot leave the wishlist unless `verified`, or the owner
+  overrides (409, then `override_fitment: true`, recorded in `override_at`). Owner parts are ungated.
+- The AI mechanic is an external agent (Claude Code / Codex) working through a published
+  contract; pitcrew itself makes no confidence-bearing LLM calls. Gemini is doc lookup only.
+- Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
+
 ## Known state
 
 - The Converse tab is still a stub (`/api/chat`). Deliberately deferred.

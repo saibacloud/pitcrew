@@ -2,11 +2,16 @@
 # SQLite schema + async CRUD via aiosqlite
 # Single shared connection, WAL mode, foreign keys enforced
 
+import asyncio
+import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import aiosqlite
+
+from backend import fitment
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +25,8 @@ DB_PATH = os.environ.get(
 VALID_JOURNAL_TYPES = {'research', 'note', 'converse', 'docsearch', 'photo', 'service'}
 VALID_PART_STATUSES = {'wishlist', 'ordered', 'received', 'installed'}
 VALID_PART_CATEGORIES = {'Mechanical', 'Electrical', 'Body', 'Interior', 'Consumables'}
+VALID_PART_SOURCES = {'owner', 'agent'}
+VALID_PART_ORIGINS = {'oem', 'oe_supplier', 'aftermarket'}
 VALID_MANUAL_CATEGORIES = {'manual', 'reference', 'other'}
 VALID_VIEW_ANGLES = {'front', 'sideD', 'sideP', 'rear', 'engine', 'underside', 'interior'}
 
@@ -96,6 +103,15 @@ CREATE TABLE IF NOT EXISTS parts (
     status      TEXT DEFAULT 'wishlist'
                 CHECK(status IN ('wishlist', 'ordered', 'received', 'installed')),
     notes       TEXT,
+    source      TEXT NOT NULL DEFAULT 'owner' CHECK(source IN ('owner', 'agent')),
+    confidence  TEXT CHECK(confidence IN ('verified', 'conditional', 'unverified')),
+    open_fields TEXT,
+    fitment_json TEXT,
+    needs_recheck INTEGER NOT NULL DEFAULT 0,
+    override_at TEXT,
+    brand       TEXT,
+    origin      TEXT CHECK(origin IN ('oem', 'oe_supplier', 'aftermarket')),
+    superseded_by TEXT,
     deleted_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
@@ -117,6 +133,22 @@ CREATE TABLE IF NOT EXISTS sessions (
     revoked_at  TEXT,
     created_at  TEXT DEFAULT (datetime('now'))
 );
+
+-- Vehicle identity used by the fitment gate. Changes supersede rows, never overwrite them.
+CREATE TABLE IF NOT EXISTS build_fields (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    car_id        INTEGER REFERENCES cars(id) ON DELETE CASCADE,
+    field         TEXT NOT NULL,
+    value         TEXT NOT NULL,
+    source        TEXT NOT NULL DEFAULT 'owner'
+                  CHECK(source IN ('owner', 'data_plate', 'catalogue', 'document')),
+    source_id     INTEGER,
+    superseded_at TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS build_fields_current
+    ON build_fields(car_id, field) WHERE superseded_at IS NULL;
 """
 
 # ── Shared connection ────────────────────────────────────────────────────────
@@ -168,6 +200,15 @@ async def init_db():
         "ALTER TABLE journal ADD COLUMN odometer INTEGER",
         "ALTER TABLE journal ADD COLUMN search_suggestions TEXT",
         "ALTER TABLE photopins ADD COLUMN search_suggestions TEXT",
+        "ALTER TABLE parts ADD COLUMN source TEXT NOT NULL DEFAULT 'owner' CHECK(source IN ('owner', 'agent'))",
+        "ALTER TABLE parts ADD COLUMN confidence TEXT CHECK(confidence IN ('verified', 'conditional', 'unverified'))",
+        "ALTER TABLE parts ADD COLUMN open_fields TEXT",
+        "ALTER TABLE parts ADD COLUMN fitment_json TEXT",
+        "ALTER TABLE parts ADD COLUMN needs_recheck INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE parts ADD COLUMN override_at TEXT",
+        "ALTER TABLE parts ADD COLUMN brand TEXT",
+        "ALTER TABLE parts ADD COLUMN origin TEXT CHECK(origin IN ('oem', 'oe_supplier', 'aftermarket'))",
+        "ALTER TABLE parts ADD COLUMN superseded_by TEXT",
     ]
     for stmt in _migrations:
         try:
@@ -305,20 +346,41 @@ async def _fetchone(sql: str, params: tuple = ()):
         return dict(row) if row else None
 
 
+# Every write holds this lock: the connection is shared, so a commit from one
+# coroutine would otherwise commit another coroutine's half-finished transaction.
+_write_lock = asyncio.Lock()
+
+
 async def _execute(sql: str, params: tuple = ()) -> int:
     """Execute a write query. Returns rowcount."""
     db = await get_db()
-    cur = await db.execute(sql, params)
-    await db.commit()
+    async with _write_lock:
+        cur = await db.execute(sql, params)
+        await db.commit()
     return cur.rowcount
 
 
 async def _insert(sql: str, params: tuple = ()) -> int:
     """Execute an INSERT. Returns lastrowid."""
     db = await get_db()
-    cur = await db.execute(sql, params)
-    await db.commit()
+    async with _write_lock:
+        cur = await db.execute(sql, params)
+        await db.commit()
     return cur.lastrowid
+
+
+@asynccontextmanager
+async def transaction():
+    """Run several writes atomically. Use the yielded connection directly, not _execute/_insert."""
+    db = await get_db()
+    async with _write_lock:
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            yield db
+        except BaseException:
+            await db.rollback()
+            raise
+        await db.commit()
 
 
 # ── Cars ─────────────────────────────────────────────────────────────────────
@@ -562,7 +624,11 @@ async def create_part(car_id: int, data: dict) -> int:
     )
 
 
-async def update_part(part_id: int, data: dict) -> int:
+class FitmentGateError(Exception):
+    """An agent-sourced part cannot leave the wishlist without verified fitment or an owner override."""
+
+
+async def update_part(part_id: int, data: dict, *, override_fitment: bool = False) -> int:
     fields = {k: v for k, v in data.items() if k in _PART_FIELDS}
     if not fields:
         return 0
@@ -570,11 +636,33 @@ async def update_part(part_id: int, data: dict) -> int:
         raise ValueError(f"Invalid part category: {fields['category']}")
     if 'status' in fields and fields['status'] not in VALID_PART_STATUSES:
         raise ValueError(f"Invalid part status: {fields['status']}")
-    set_clause = ', '.join(f"{k} = ?" for k in fields)
-    values = list(fields.values()) + [part_id]
-    return await _execute(
-        f"UPDATE parts SET {set_clause} WHERE id = ? AND {_LIVE_PART}", tuple(values)
-    )
+
+    async with transaction() as db:
+        async with db.execute(f"SELECT * FROM parts WHERE id = ? AND {_LIVE_PART}", (part_id,)) as cur:
+            row = await cur.fetchone()
+        if row is None:
+            return 0
+        part = dict(row)
+        stamp_override = False
+        if part['source'] == 'agent':
+            # Editing the number invalidates whatever evidence verified the old one
+            new_pn = fields.get('part_number', part['part_number'])
+            if fitment.normalise_part_number(new_pn) != fitment.normalise_part_number(part['part_number']):
+                fields.update(confidence='unverified', fitment_json=None, needs_recheck=0)
+            confidence = fields.get('confidence', part['confidence'])
+            leaving_wishlist = part['status'] == 'wishlist' and fields.get('status', 'wishlist') != 'wishlist'
+            if leaving_wishlist and confidence != 'verified':
+                if not override_fitment:
+                    raise FitmentGateError(f"Fitment is {confidence or 'unverified'}, not verified")
+                stamp_override = True
+        set_clause = ', '.join(f"{k} = ?" for k in fields)
+        if stamp_override:
+            set_clause += ", override_at = datetime('now')"
+        values = list(fields.values()) + [part_id]
+        cur = await db.execute(
+            f"UPDATE parts SET {set_clause} WHERE id = ? AND {_LIVE_PART}", tuple(values)
+        )
+        return cur.rowcount
 
 
 async def soft_delete_part(part_id: int) -> int:
@@ -582,6 +670,83 @@ async def soft_delete_part(part_id: int) -> int:
         f"UPDATE parts SET deleted_at = datetime('now') WHERE id = ? AND {_LIVE_PART}",
         (part_id,)
     )
+
+
+# ── Build sheet ──────────────────────────────────────────────────────────────
+
+_CURRENT_BUILD = "superseded_at IS NULL"
+
+
+async def get_build_rows(car_id: int) -> dict[str, dict]:
+    rows = await _fetchall(
+        f"SELECT field, value, source, source_id, created_at FROM build_fields "
+        f"WHERE car_id = ? AND {_CURRENT_BUILD}",
+        (car_id,)
+    )
+    return {r['field']: r for r in rows if r['field'] in fitment.BUILD_FIELDS}
+
+
+async def get_build(car_id: int) -> dict:
+    """Decoded build sheet, field -> value, unset fields absent."""
+    return {f: fitment.decode_build_value(f, r['value']) for f, r in (await get_build_rows(car_id)).items()}
+
+
+async def _flag_recheck(db, car_id: int, field: str) -> None:
+    """Agent parts whose fitment rested on this field drop from verified and need a recheck."""
+    async with db.execute(
+        f"SELECT id, fitment_json FROM parts WHERE car_id = ? AND source = 'agent' "
+        f"AND fitment_json IS NOT NULL AND {_LIVE_PART}",
+        (car_id,)
+    ) as cur:
+        rows = await cur.fetchall()
+    ids = [r['id'] for r in rows if field in json.loads(r['fitment_json'])]
+    for part_id in ids:
+        await db.execute(
+            "UPDATE parts SET needs_recheck = 1, confidence = CASE confidence "
+            "WHEN 'verified' THEN 'conditional' ELSE confidence END WHERE id = ?",
+            (part_id,)
+        )
+
+
+async def set_build_field(car_id: int, field: str, value, *, source: str = 'owner',
+                          source_id: Optional[int] = None) -> None:
+    stored = fitment.encode_build_value(field, value)
+    if source not in fitment.BUILD_SOURCES:
+        raise ValueError(f"Invalid build field source: {source}")
+    async with transaction() as db:
+        async with db.execute(
+            f"SELECT value, source FROM build_fields WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
+            (car_id, field)
+        ) as cur:
+            current = await cur.fetchone()
+        if current and current['value'] == stored and current['source'] == source:
+            return
+        if current:
+            await db.execute(
+                f"UPDATE build_fields SET superseded_at = datetime('now') "
+                f"WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
+                (car_id, field)
+            )
+            if current['value'] != stored:
+                await _flag_recheck(db, car_id, field)
+        await db.execute(
+            "INSERT INTO build_fields (car_id, field, value, source, source_id) VALUES (?, ?, ?, ?, ?)",
+            (car_id, field, stored, source, source_id)
+        )
+
+
+async def clear_build_field(car_id: int, field: str) -> int:
+    if field not in fitment.BUILD_FIELDS:
+        raise ValueError(f"Unknown build field: {field}")
+    async with transaction() as db:
+        cur = await db.execute(
+            f"UPDATE build_fields SET superseded_at = datetime('now') "
+            f"WHERE car_id = ? AND field = ? AND {_CURRENT_BUILD}",
+            (car_id, field)
+        )
+        if cur.rowcount:
+            await _flag_recheck(db, car_id, field)
+        return cur.rowcount
 
 
 # ── Manuals ──────────────────────────────────────────────────────────────────
