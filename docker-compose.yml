@@ -12,7 +12,7 @@ services:
       - pitcrew-data:/app/data
       - pitcrew-uploads:/app/static/uploads
     ports:
-      - "192.168.20.253:8600:8600"
+      - "${BIND_IP:-127.0.0.1}:8600:8600"
     restart: unless-stopped
 
 volumes:
