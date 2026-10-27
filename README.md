@@ -50,7 +50,7 @@ uvicorn backend.app:app --reload
 docker compose up --build
 ```
 
-I personally deploy via Coolify on Blip, which pulls from GitHub and builds from `docker-compose.yml`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI. The container port is published at Blip's LAN address `192.168.20.253:8600` for Nginx Proxy Manager on REM, which serves `https://pitcrew.local.saiba.cloud`, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
+I personally deploy via Coolify, which pulls from GitHub and builds from `docker-compose.yml`. `GENAI_API_KEY`, `PITCREW_PIN_HASH` and `PITCREW_SECRET_KEY` are set in the Coolify environment UI. The container port is published on the host LAN address set in `BIND_IP` (default `127.0.0.1`) for Nginx Proxy Manager on REM, which serves `https://pitcrew.local.saiba.cloud`, and the two named volumes (`pitcrew-data`, `pitcrew-uploads`) persist the SQLite database and uploads across rebuilds.
 
 The app serves on port 8600. Note that the session cookie is `Secure`, so PitCrew needs to be served over HTTPS in production — Chrome and Firefox make an exception for `http://localhost`, which is what makes local dev work.
 
