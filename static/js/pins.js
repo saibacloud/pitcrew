@@ -1,12 +1,12 @@
 // PitCrew — photo pins (views, pin overlay, AI research)
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml, noAIKeyMessage, aiErrorHtml } from './app.js';
 import { pitcrewPrompt, pitcrewConfirm } from './dialogs.js';
 
 let carViews = {};      // { angle: [view, ...] }
 let carPins = {};       // { viewId: [pin, ...] }
 let activeViews = {};   // { angle: viewId | null }
-let pinResearch = {};   // { pinId: { loading, summary } }
+let pinResearch = {};   // { pinId: { loading, summary, error } }
 
 export async function loadViews() {
     if (!activeCar) return;
@@ -76,7 +76,7 @@ async function renderViewTab(angle) {
                         : '';
                     const loadingDiv = isLoading
                         ? `<div class="pin-research-result pin-research-loading">${aiLoadingHtml('Researching')}</div>`
-                        : '';
+                        : (research && research.error ? `<div class="pin-research-result">${aiErrorHtml(research.error)}</div>` : '');
                     return `<div class="pin-list-item">
                         <div class="pin-list-top">
                             <span class="pin-num">${i + 1}</span>
@@ -238,8 +238,9 @@ async function researchPin(pinId, viewId, angle) {
         const data = await api('POST', `/api/pins/${pinId}/research`);
         pinResearch[pinId] = { loading: false, summary: data.summary, suggestions: data.search_suggestions };
     } catch (e) {
-        pinResearch[pinId] = { loading: false, summary: null };
-        toast(errorMessage(e, 'AI research failed'));
+        const noKey = noAIKeyMessage(e);
+        pinResearch[pinId] = { loading: false, summary: null, error: noKey };
+        if (!noKey) toast(errorMessage(e, 'AI research failed'));
     }
     await renderViewTab(angle);
 }

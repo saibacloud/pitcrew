@@ -1,6 +1,6 @@
 // PitCrew — manuals / documents
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, noAIKeyMessage, aiErrorHtml } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 import { addSavedEntry } from './journal.js';
 
@@ -130,7 +130,13 @@ async function askDocuments() {
         addSavedEntry(data.journal_entry);
         input.value = '';
     } catch (e) {
-        toast(errorMessage(e, 'AI search failed'));
+        const noKey = noAIKeyMessage(e);
+        if (noKey) {
+            answerEl.innerHTML = aiErrorHtml(noKey);
+            resultEl.style.display = 'block';
+        } else {
+            toast(errorMessage(e, 'AI search failed'));
+        }
     } finally {
         btn.disabled = selectedManualIds.size === 0;
         updateDocAskBtn();

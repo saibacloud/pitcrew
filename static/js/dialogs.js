@@ -94,6 +94,8 @@ export function initDialogs() {
                 // Close add-car and add-part modals
                 document.getElementById('modal-add-car').classList.remove('open');
                 document.getElementById('modal-add-part').classList.remove('open');
+                document.getElementById('modal-settings').classList.remove('open');
+                document.getElementById('settings-key').value = '';
             }
         }
     });

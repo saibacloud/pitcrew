@@ -50,6 +50,7 @@
     <div id="view-garage" class="view">
         <header class="app-header">
             <span class="logo">Pit<em>Crew</em></span>
+            <button class="lock-btn" id="settings-btn" title="Settings">Settings</button>
             <button class="lock-btn" id="lock-btn" title="Lock PitCrew">Lock</button>
         </header>
         <main>
@@ -192,6 +193,7 @@
                             <input type="text" id="research-input" placeholder="Search for..." />
                             <button class="btn btn-primary" id="research-btn">Search</button>
                         </div>
+                        <p class="ai-error" id="research-error" role="alert" hidden></p>
                         <table class="parts-table">
                             <thead><tr><th>Date</th><th>Query</th><th></th></tr></thead>
                             <tbody id="research-tbody"></tbody>
@@ -466,6 +468,36 @@
             <button class="pdf-close-btn">Close</button>
         </div>
         <iframe id="pdf-frame" class="pdf-frame" src=""></iframe>
+    </div>
+
+    <!-- AI Settings -->
+    <div class="modal-overlay" id="modal-settings">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+            <h3 id="settings-title">AI Settings</h3>
+            <dl class="settings-state">
+                <dt>Provider</dt><dd id="settings-provider"></dd>
+                <dt>Model</dt><dd id="settings-current-model"></dd>
+                <dt>Key</dt><dd id="settings-key-state"></dd>
+            </dl>
+            <form id="form-settings" autocomplete="off" novalidate>
+                <div class="settings-fields">
+                    <div class="form-group">
+                        <label for="settings-key">API key</label>
+                        <input type="password" id="settings-key" autocomplete="off" spellcheck="false" />
+                    </div>
+                    <div class="form-group">
+                        <label for="settings-model">Model</label>
+                        <input type="text" id="settings-model" autocomplete="off" spellcheck="false" />
+                    </div>
+                </div>
+                <p class="ai-error" id="settings-error" role="alert" hidden></p>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-ghost settings-remove" id="settings-remove">Remove key</button>
+                    <button type="button" class="btn btn-ghost" id="settings-close">Close</button>
+                    <button type="submit" class="btn btn-primary" id="settings-save">Save</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Prompt Dialog -->

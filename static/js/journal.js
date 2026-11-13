@@ -1,6 +1,6 @@
 // PitCrew — journal (research, notes, converse, doc search, photos)
 
-import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
+import { activeCar, api, apiUpload, toast, escapeHtml, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml, noAIKeyMessage } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let journalEntries = [];
@@ -129,6 +129,8 @@ async function runResearch() {
     const query = inputEl?.value?.trim();
     if (!query) { toast('Enter a question first'); return; }
     const btn = document.getElementById('research-btn');
+    const errorEl = document.getElementById('research-error');
+    errorEl.hidden = true;
     btn.disabled = true;
     btn.innerHTML = aiLoadingHtml('Searching');
     try {
@@ -138,7 +140,13 @@ async function runResearch() {
         renderJournalTab('research');
         toast('Done');
     } catch (e) {
-        toast(errorMessage(e, 'Search failed'));
+        const noKey = noAIKeyMessage(e);
+        if (noKey) {
+            errorEl.textContent = noKey;
+            errorEl.hidden = false;
+        } else {
+            toast(errorMessage(e, 'Search failed'));
+        }
         console.error(e);
     } finally {
         btn.disabled = false;

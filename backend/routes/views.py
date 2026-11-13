@@ -14,7 +14,7 @@ from backend.db import (
     get_photopin, get_photopins, create_photopin, update_photopin, soft_delete_photopin,
     VALID_VIEW_ANGLES,
 )
-from backend.services import gemini
+from backend.services import ai
 from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['views', 'pins'])
@@ -54,7 +54,7 @@ async def upload_view(car_id: int, angle: str, file: UploadFile = File(...)):
     contents = await read_upload(file, MAX_VIEW_UPLOAD)
 
     # Compress for storage
-    contents = gemini.compress_for_storage(contents)
+    contents = ai.compress_for_storage(contents)
 
     filename = f'view_{car_id}_{angle}_{int(time.time() * 1000)}{ext}'
     dest = os.path.join(VIEWS_DIR, filename)
@@ -99,9 +99,9 @@ async def add_pin(view_id: int, body: PhotoPinBody):
     return await get_photopin(pin_id)
 
 
-@router.post('/pins/{pin_id}/research', dependencies=[Depends(rate_limit_ai)])
+@router.post('/pins/{pin_id}/research', dependencies=[Depends(rate_limit_ai), Depends(ai.require_ai)])
 async def research_pin(pin_id: int):
-    """Send photo + pin context to Gemini and return research about that specific component."""
+    """Send photo + pin context to the AI and return research about that specific component."""
     pin = await get_photopin(pin_id)
     if not pin:
         raise HTTPException(404, 'Pin not found')
@@ -124,15 +124,15 @@ async def research_pin(pin_id: int):
     with open(filepath, 'rb') as f:
         raw_bytes = f.read()
 
-    images = gemini.pin_images(raw_bytes, pin.get('x_pct'), pin.get('y_pct'))
-    prompt_text = gemini.build_pin_research_prompt(
+    images = ai.pin_images(raw_bytes, pin.get('x_pct'), pin.get('y_pct'))
+    prompt_text = ai.build_pin_research_prompt(
         car, pin, view.get('angle', ''),
         installed_parts=await get_installed_parts(car['id']),
         has_marker=len(images) > 1,
     )
 
     try:
-        answer = await gemini.research_with_images(prompt_text, images)
+        answer = await ai.research_with_images(prompt_text, images)
     except Exception:
         raise HTTPException(502, 'AI research failed — try again shortly')
     await update_photopin(pin_id, {'ai_summary': answer.text, 'search_suggestions': answer.search_suggestions})

@@ -18,7 +18,7 @@ from backend.agent_keys import require_agent
 from backend.fetch import FetchError, fetch_page
 from backend.routes.build import build_sheet
 from backend.routes.manuals import STATIC_DIR, _sidecar_pages
-from backend.services.gemini import rank_passages
+from backend.services.ai import rank_passages
 
 router = APIRouter(prefix='/api/agent', tags=['agent'])
 

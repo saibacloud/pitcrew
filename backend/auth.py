@@ -27,6 +27,8 @@ PIN_PATTERN = r'^\d{6,12}$'
 # a restart logs everyone out. That beats shipping a guessable default that
 # would let anyone forge a session cookie.
 SECRET_KEY = os.environ.get('PITCREW_SECRET_KEY', '')
+# False under the ephemeral key below; stored AI keys need a secret that survives restarts
+SECRET_CONFIGURED = bool(SECRET_KEY)
 if not SECRET_KEY:
     SECRET_KEY = secrets.token_urlsafe(32)
     # Silent under `python -m backend.auth`, which only needs the hasher

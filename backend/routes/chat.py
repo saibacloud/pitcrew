@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend import db, fitment
 from backend.auth import rate_limit_ai
-from backend.services import gemini
+from backend.services import ai
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ async def build_contract(car: dict) -> str:
     rows = await db.get_build_rows(car['id'])
     build = {f: fitment.decode_build_value(f, r['value']) for f, r in rows.items() if r['confirmed_at']}
     pending = {f: fitment.decode_build_value(f, r['value']) for f, r in rows.items() if not r['confirmed_at']}
-    return gemini.car_contract(
+    return ai.car_contract(
         car, build, pending,
         await db.get_parts(car['id'], limit=200),
         await db.get_service_entries(car['id']),
@@ -122,7 +122,7 @@ class ChatMessageBody(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
 
 
-@router.post('/chats/{thread_id}/messages', status_code=201, dependencies=[Depends(rate_limit_ai)])
+@router.post('/chats/{thread_id}/messages', status_code=201, dependencies=[Depends(rate_limit_ai), Depends(ai.require_ai)])
 async def send_message(thread_id: int, body: ChatMessageBody):
     thread = await _thread_or_404(thread_id)
     car = await db.get_car(thread['car_id'])
@@ -134,18 +134,18 @@ async def send_message(thread_id: int, body: ChatMessageBody):
 
     # Inventory extraction reads the previous answer, not this one, so both calls run at once
     answer, extracted = await asyncio.gather(
-        gemini.chat(await build_contract(car), history, text),
-        gemini.extract_inventory(previous_answer, text, await db.get_inventory()),
+        ai.chat(await build_contract(car), history, text),
+        ai.extract_inventory(previous_answer, text, await db.get_inventory()),
         return_exceptions=True,
     )
     if isinstance(answer, BaseException):
-        log.warning("Chat answer failed: %r", answer)
+        log.warning("Chat answer failed: %s", ai.describe_error(answer))
         raise HTTPException(502, 'AI request failed — try again shortly')
 
     user_id, model_id = await db.add_exchange(thread_id, text, answer.text, answer.search_suggestions)
     changes = []
     if isinstance(extracted, BaseException):
-        log.warning("Inventory extraction failed: %r", extracted)
+        log.warning("Inventory extraction failed: %s", ai.describe_error(extracted))
     else:
         changes = await db.apply_inventory_changes(user_id, valid_changes(extracted, text, previous_answer))
     messages = {m['id']: m for m in await db.get_messages(thread_id, limit=2)}

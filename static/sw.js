@@ -1,5 +1,5 @@
 // PitCrew service worker — network-first with offline shell fallback
-const CACHE_NAME = 'pitcrew-v6';
+const CACHE_NAME = 'pitcrew-v7';
 const SHELL_ASSETS = [
     '/',
     '/static/style.css',
@@ -15,6 +15,7 @@ const SHELL_ASSETS = [
     '/static/js/build.js',
     '/static/js/chat.js',
     '/static/js/inventory.js',
+    '/static/js/settings.js',
     '/static/manifest.json',
 ];
 
