@@ -11,6 +11,7 @@ import { initChat } from './chat.js';
 import { initInventory } from './inventory.js';
 import { initDialogs } from './dialogs.js';
 import { initLogin, showLogin } from './login.js';
+import { initSettings } from './settings.js';
 
 // ── Shared state ────────────────────────────────────────────────────────────
 
@@ -94,6 +95,15 @@ export function aiLoadingHtml(text = 'Thinking') {
 // The server's reason when it gave one, otherwise the caller's fallback
 export function errorMessage(error, fallback) {
     return (error && error.detail) || fallback;
+}
+
+// With no AI key configured the server answers 503; that message replaces the answer
+export function noAIKeyMessage(error) {
+    return error && error.status === 503 ? errorMessage(error, 'No AI API key set') : null;
+}
+
+export function aiErrorHtml(msg) {
+    return `<p class="ai-error" role="alert">${escapeHtml(msg)}</p>`;
 }
 
 // Google's Search Suggestions for a grounded answer, isolated in a sandboxed frame:
@@ -193,6 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initManuals();
     initChat();
     initInventory();
+    initSettings();
     initLogin(enterApp);
     document.getElementById('lock-btn').addEventListener('click', lock);
 

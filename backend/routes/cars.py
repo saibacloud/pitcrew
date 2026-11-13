@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend.db import get_car, get_cars, create_car, update_car, soft_delete_car, update_car_photo
-from backend.services.gemini import compress_for_storage
+from backend.services.ai import compress_for_storage
 from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['cars'])

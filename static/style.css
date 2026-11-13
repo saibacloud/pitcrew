@@ -2047,6 +2047,57 @@ main {
     color: var(--text);
 }
 
+.lock-btn + .lock-btn {
+    margin-left: 8px;
+}
+
+/* ── AI settings ─────────────────────────────────────────────────────────── */
+
+.settings-state {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    margin: 0 0 20px;
+    font-size: 14px;
+}
+
+.settings-state dt {
+    color: var(--muted);
+}
+
+.settings-state dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.settings-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#form-settings .form-actions {
+    flex-wrap: wrap;
+}
+
+.settings-remove {
+    margin-right: auto;
+}
+
+.settings-remove[hidden] {
+    display: none;
+}
+
+.ai-error {
+    font-size: 13px;
+    color: #e63946;
+    margin: 10px 0 0;
+}
+
+.ai-error[hidden] {
+    display: none;
+}
+
 /* ── Google Search suggestions (required with grounded answers) ──────────── */
 
 .search-suggestions {

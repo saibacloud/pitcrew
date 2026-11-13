@@ -5,6 +5,9 @@ argon2-cffi
 itsdangerous
 python-multipart
 google-genai
+openai
+cryptography
+httpx
 python-dotenv
 pillow
 python-docx

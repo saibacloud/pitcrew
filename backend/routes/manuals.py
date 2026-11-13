@@ -11,7 +11,6 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from PIL import Image
 from pydantic import BaseModel
-from google.genai import types
 
 from backend.auth import rate_limit_ai
 from backend.db import (
@@ -20,7 +19,7 @@ from backend.db import (
     create_journal, get_journal,
     VALID_MANUAL_CATEGORIES,
 )
-from backend.services import gemini
+from backend.services import ai
 from backend.uploads import save_upload
 
 log = logging.getLogger(__name__)
@@ -38,13 +37,11 @@ ALLOWED_EXTENSIONS: dict = {
     'other':     None,  # any
 }
 
-# Image formats Gemini accepts directly; other raster formats are converted to PNG
-GEMINI_IMAGE_MIME = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
+# Image formats both AI providers accept directly; other raster formats are converted to PNG
+IMAGE_MIME = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp'}
 RASTER_TO_PNG = {'.gif', '.bmp'}
 
-PDF_PAGE_BUDGET = 300      # PDF pages sent whole per question, across all selected PDFs
-PDF_PICKED_PAGES = 30      # pages chosen by search from a PDF that does not fit the budget
-PDF_MAX_BYTES = 50 * 1024 * 1024  # Gemini's per-PDF limit
+PDF_PICKED_PAGES = 30      # pages chosen by search from a PDF that does not fit the page budget
 FULL_TEXT_CHARS = 300_000  # DOCX/text files below this are sent whole
 
 
@@ -101,7 +98,7 @@ def _pdf_subset(filepath: str, page_numbers: list[int]) -> bytes:
 def _pick_pages(pages: dict[int, str], question: str) -> list[int]:
     """Best-matching pages plus the page after each top hit, since procedures run on."""
     numbers = sorted(pages)
-    ranked = [numbers[i] for i in gemini.rank_passages([pages[n] for n in numbers], question)]
+    ranked = [numbers[i] for i in ai.rank_passages([pages[n] for n in numbers], question)]
     picked: set[int] = set()
     for rank, n in enumerate(ranked):
         if len(picked) >= PDF_PICKED_PAGES:
@@ -129,8 +126,8 @@ def _docx_text(filepath: str) -> str:
 def _text_excerpt(text: str, question: str) -> str:
     if len(text) <= FULL_TEXT_CHARS:
         return text
-    chunks = gemini.text_chunks(text)
-    ranked = gemini.rank_passages(chunks, question)[:12] or [0]
+    chunks = ai.text_chunks(text)
+    ranked = ai.rank_passages(chunks, question)[:12] or [0]
     return '\n\n[...]\n\n'.join(chunks[i] for i in sorted(ranked))
 
 
@@ -200,7 +197,7 @@ class ManualAskBody(BaseModel):
     manual_ids: list[int]
 
 
-@router.post('/cars/{car_id}/manuals/ask', dependencies=[Depends(rate_limit_ai)])
+@router.post('/cars/{car_id}/manuals/ask', dependencies=[Depends(rate_limit_ai), Depends(ai.require_ai)])
 async def ask_manuals(car_id: int, body: ManualAskBody):
     """Answer a question using only the selected uploaded documents."""
     car = await get_car(car_id)
@@ -209,9 +206,12 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
     if not body.manual_ids:
         raise HTTPException(400, 'Select at least one document')
 
+    # The provider's PDF limits: bytes per PDF, pages per question and bytes per request
+    limits = await ai.pdf_limits()
     content_parts: list = []
     loaded: list[str] = []
-    page_budget = PDF_PAGE_BUDGET
+    page_budget = limits.max_pages
+    byte_budget = limits.request_bytes if limits.request_bytes is not None else float('inf')
 
     for mid in body.manual_ids:
         doc = await get_manual(mid)
@@ -226,49 +226,49 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
         try:
             if ext == '.pdf':
                 page_count = await asyncio.to_thread(_pdf_page_count, filepath)
-                if page_count <= page_budget and os.path.getsize(filepath) <= PDF_MAX_BYTES:
-                    content_parts.append(types.Part.from_text(
-                        text=f'[Document: {title}, full PDF of {page_count} pages. '
-                             f'Cite pages by their position in this PDF.]'
-                    ))
+                size = os.path.getsize(filepath)
+                if page_count <= page_budget and size <= min(limits.max_bytes, byte_budget):
+                    content_parts.append(
+                        f'[Document: {title}, full PDF of {page_count} pages. '
+                        f'Cite pages by their position in this PDF.]'
+                    )
                     cache_key = f'{filepath}:{os.path.getmtime(filepath)}'
-                    content_parts.append(await gemini.pdf_file_part(filepath, cache_key))
+                    content_parts.append(ai.PdfFile(filepath, cache_key))
                     page_budget -= page_count
+                    byte_budget -= size
                 else:
                     pages = await asyncio.to_thread(_sidecar_pages, filepath)
                     if not pages:
                         raise HTTPException(400, f'"{title}" is a scanned PDF of {page_count} pages, too long to '
-                                                 f'read whole. Split it into parts under {PDF_PAGE_BUDGET} pages.')
+                                                 f'read whole. Split it into parts under {limits.max_pages} pages.')
                     picked = _pick_pages(pages, body.question)
                     subset = await asyncio.to_thread(_pdf_subset, filepath, picked)
-                    # pypdf can carry shared images/fonts into a subset; past Gemini's
-                    # PDF limit the picked pages go as extracted text instead
-                    if len(subset) <= PDF_MAX_BYTES:
-                        content_parts.append(types.Part.from_text(
-                            text=f'[Document: {title}, selected pages only. In order, the pages of this PDF are '
-                                 f'original pages {", ".join(map(str, picked))}. Cite the original page numbers.]'
-                        ))
-                        content_parts.append(await gemini.pdf_bytes_part(subset))
+                    # pypdf can carry shared images/fonts into a subset; past the provider's
+                    # PDF limits the picked pages go as extracted text instead
+                    if len(subset) <= min(limits.max_bytes, byte_budget):
+                        content_parts.append(
+                            f'[Document: {title}, selected pages only. In order, the pages of this PDF are '
+                            f'original pages {", ".join(map(str, picked))}. Cite the original page numbers.]'
+                        )
+                        content_parts.append(ai.PdfBytes(subset))
+                        byte_budget -= len(subset)
                     else:
                         log.info("Subset of %s is %d bytes; sending page text", title, len(subset))
-                        content_parts.append(types.Part.from_text(
-                            text=f'[Document: {title}, extracted text of selected pages]\n\n'
-                                 + '\n\n'.join(f'[Page {n}]\n{pages[n]}' for n in picked if n in pages)
-                        ))
+                        content_parts.append(
+                            f'[Document: {title}, extracted text of selected pages]\n\n'
+                            + '\n\n'.join(f'[Page {n}]\n{pages[n]}' for n in picked if n in pages)
+                        )
                     page_budget = max(0, page_budget - len(picked))
-            elif ext in GEMINI_IMAGE_MIME or ext in RASTER_TO_PNG:
+            elif ext in IMAGE_MIME or ext in RASTER_TO_PNG:
                 with open(filepath, 'rb') as f:
                     data = f.read()
-                mime = GEMINI_IMAGE_MIME.get(ext, 'image/png')
+                mime = IMAGE_MIME.get(ext, 'image/png')
                 if ext in RASTER_TO_PNG:
                     buf = io.BytesIO()
                     Image.open(io.BytesIO(data)).convert('RGB').save(buf, format='PNG')
                     data = buf.getvalue()
-                content_parts.append(types.Part.from_text(text=f'[Document: {title}, image]'))
-                content_parts.append(types.Part.from_bytes(
-                    data=data, mime_type=mime,
-                    media_resolution=types.PartMediaResolutionLevel.MEDIA_RESOLUTION_HIGH,
-                ))
+                content_parts.append(f'[Document: {title}, image]')
+                content_parts.append(ai.Image(data, mime))
             else:
                 if ext == '.docx':
                     text = await asyncio.to_thread(_docx_text, filepath)
@@ -277,9 +277,9 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
                         text = f.read()
                 if not text.strip():
                     continue
-                content_parts.append(types.Part.from_text(
-                    text=f'[Document: {title}, text without page numbers]\n\n{_text_excerpt(text, body.question)}'
-                ))
+                content_parts.append(
+                    f'[Document: {title}, text without page numbers]\n\n{_text_excerpt(text, body.question)}'
+                )
             loaded.append(title)
         except HTTPException:
             raise
@@ -291,7 +291,7 @@ async def ask_manuals(car_id: int, body: ManualAskBody):
         raise HTTPException(400, 'Could not read any of the selected documents')
 
     try:
-        answer = await gemini.ask_documents(content_parts, car, body.question)
+        answer = await ai.ask_documents(content_parts, car, body.question)
     except Exception:
         raise HTTPException(502, 'AI document search failed — try again shortly')
 

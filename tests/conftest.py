@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-# Importing the app constructs the Gemini client, which needs a key; no AI is called in tests
+# The env fallback key lets AI routes pass their no-key check; no AI is called in tests
 os.environ.setdefault('GENAI_API_KEY', 'test-key')
 
 from fastapi.testclient import TestClient  # noqa: E402

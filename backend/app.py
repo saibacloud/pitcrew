@@ -26,6 +26,7 @@ from backend.routes.manuals import router as manuals_router
 from backend.routes.build import router as build_router
 from backend.routes.agent import router as agent_router
 from backend.routes.chat import router as chat_router
+from backend.routes.settings import router as settings_router
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ app.include_router(parts_router, dependencies=api_deps)
 app.include_router(manuals_router, dependencies=api_deps)
 app.include_router(build_router, dependencies=api_deps)
 app.include_router(chat_router, dependencies=api_deps)
+app.include_router(settings_router, dependencies=api_deps)
 
 # Uploads (manuals, photos) sit under /static/uploads but need a session.
 # Registered before the static mount so it takes precedence for these paths.

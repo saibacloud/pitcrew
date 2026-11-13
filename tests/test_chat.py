@@ -1,6 +1,6 @@
 import pytest
 
-from backend.services import gemini
+from backend.services import ai as ai_layer
 
 ANSWER_1 = 'You will need a 14 mm socket, a drain pan and brake and parts cleaner to degrease the housing.'
 
@@ -15,7 +15,7 @@ def ai(monkeypatch):
         result = state['answers'].pop(0)
         if isinstance(result, Exception):
             raise result
-        return gemini.Answer(result, '<div>suggestions</div>')
+        return ai_layer.Answer(result, '<div>suggestions</div>')
 
     async def extract(previous_answer, message, inventory):
         state['extract_calls'].append({'previous': previous_answer, 'message': message})
@@ -24,8 +24,8 @@ def ai(monkeypatch):
             raise result
         return result
 
-    monkeypatch.setattr(gemini, 'chat', chat)
-    monkeypatch.setattr(gemini, 'extract_inventory', extract)
+    monkeypatch.setattr(ai_layer, 'chat', chat)
+    monkeypatch.setattr(ai_layer, 'extract_inventory', extract)
     return state
 
 
@@ -58,7 +58,7 @@ def test_every_answer_gets_the_car_contract(client, ai, car):
     for expected in ('WBABD52040JX12345', 'Titan Silver', '330Ci', 'transmission: GS6-37BZ', 'torque wrench'):
         assert expected in contract
     # The fixed rules ride along in the system instruction
-    assert 'MUST follow these rules' in gemini.CHAT_SYSTEM_INSTRUCTION
+    assert 'MUST follow these rules' in ai_layer.CHAT_SYSTEM_INSTRUCTION
 
 
 def test_unconfirmed_build_values_are_marked_in_the_contract(client, run, ai, car):

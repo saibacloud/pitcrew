@@ -13,8 +13,8 @@ from backend.db import (
     get_car, get_journal, get_journals, count_journals, get_installed_parts,
     create_journal, update_journal, soft_delete_journal,
 )
-from backend.services import gemini
-from backend.services.gemini import compress_for_storage
+from backend.services import ai
+from backend.services.ai import compress_for_storage
 from backend.uploads import read_upload
 
 router = APIRouter(prefix='/api', tags=['journal'])
@@ -116,15 +116,15 @@ async def upload_journal_photo(
     return await get_journal(entry_id)
 
 
-@router.post('/cars/{car_id}/research', status_code=201, dependencies=[Depends(rate_limit_ai)])
+@router.post('/cars/{car_id}/research', status_code=201, dependencies=[Depends(rate_limit_ai), Depends(ai.require_ai)])
 async def research(car_id: int, req: ResearchRequest):
     car = await get_car(car_id)
     if not car:
         raise HTTPException(404, 'Car not found')
 
-    prompt = gemini.build_research_prompt(car, req.query, await get_installed_parts(car_id))
+    prompt = ai.build_research_prompt(car, req.query, await get_installed_parts(car_id))
     try:
-        answer = await gemini.research(prompt)
+        answer = await ai.research(prompt)
     except Exception:
         raise HTTPException(502, 'AI request failed — try again shortly')
 

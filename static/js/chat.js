@@ -1,6 +1,6 @@
 // PitCrew — chat threads with the mechanic, plus inventory changes they record
 
-import { activeCar, api, toast, escapeHtml, escapeAttr, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml } from './app.js';
+import { activeCar, api, toast, escapeHtml, escapeAttr, renderMarkdown, aiLoadingHtml, errorMessage, searchSuggestionsHtml, noAIKeyMessage, aiErrorHtml } from './app.js';
 import { pitcrewConfirm } from './dialogs.js';
 
 let threads = [];
@@ -94,12 +94,13 @@ function messageHtml(m, idx) {
     </div>`;
 }
 
-function renderMessages(pendingText) {
+// With an error, the unsent message is shown with the error in place of the answer
+function renderMessages(pendingText, error) {
     const el = document.getElementById('chat-messages');
     let html = messages.map(messageHtml).join('');
     if (pendingText != null) {
         html += `<div class="chat-msg chat-msg--user"><div class="chat-bubble">${escapeHtml(pendingText)}</div></div>
-            <div class="chat-msg chat-msg--model">${aiLoadingHtml()}</div>`;
+            <div class="chat-msg chat-msg--model">${error ? aiErrorHtml(error) : aiLoadingHtml()}</div>`;
     }
     el.innerHTML = html;
     el.lastElementChild?.scrollIntoView({ block: 'nearest' });
@@ -149,8 +150,9 @@ async function send(e) {
         if (gen !== generation) return;
         // Nothing was stored, so the typed text stays in the box for a resend
         setSending(false);
-        renderMessages();
-        toast(errorMessage(err, 'Message failed'));
+        const noKey = noAIKeyMessage(err);
+        renderMessages(noKey ? text : undefined, noKey);
+        if (!noKey) toast(errorMessage(err, 'Message failed'));
         input.focus();
     }
 }

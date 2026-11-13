@@ -260,6 +260,16 @@ CREATE TABLE IF NOT EXISTS agent_requests (
     created_at    TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (agent_key_id, idem_key)
 );
+
+-- The owner's AI provider key, Fernet-encrypted with a key derived from PITCREW_SECRET_KEY
+CREATE TABLE IF NOT EXISTS ai_settings (
+    id          INTEGER PRIMARY KEY CHECK(id = 1),
+    provider    TEXT NOT NULL CHECK(provider IN ('gemini', 'openai')),
+    model       TEXT NOT NULL,
+    key_enc     TEXT NOT NULL,
+    key_last4   TEXT NOT NULL,
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
 """
 
 # ── Shared connection ────────────────────────────────────────────────────────
@@ -1337,3 +1347,23 @@ async def apply_inventory_changes(message_id: int, changes: list[dict]) -> list[
                 live.remove(matches[0])
                 applied.append({'action': 'remove', 'inventory_id': matches[0]['id'], **c})
     return applied
+
+
+# ── AI settings ──────────────────────────────────────────────────────────────
+
+async def get_ai_settings() -> Optional[dict]:
+    return await _fetchone("SELECT provider, model, key_enc, key_last4, updated_at FROM ai_settings WHERE id = 1")
+
+
+async def save_ai_settings(provider: str, model: str, key_enc: str, key_last4: str) -> None:
+    await _execute(
+        "INSERT INTO ai_settings (id, provider, model, key_enc, key_last4, updated_at) "
+        "VALUES (1, ?, ?, ?, ?, datetime('now')) ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, "
+        "model = excluded.model, key_enc = excluded.key_enc, key_last4 = excluded.key_last4, "
+        "updated_at = excluded.updated_at",
+        (provider, model, key_enc, key_last4)
+    )
+
+
+async def delete_ai_settings() -> int:
+    return await _execute("DELETE FROM ai_settings WHERE id = 1")

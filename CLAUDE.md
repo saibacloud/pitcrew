@@ -1,6 +1,6 @@
 # CLAUDE.md - pitcrew
 
-AI car workshop assistant. FastAPI + SQLite + Gemini + vanilla JS. Deployed to Coolify.
+AI car workshop assistant. FastAPI + SQLite + Google Gemini or OpenAI + vanilla JS. Runs as a container.
 
 ## Location
 
@@ -16,7 +16,7 @@ work now:
 
 `old_nemesis/` (the retired dorking engine) is now at `Documents/Code/archive/old_nemesis`.
 
-The local `.env` `GENAI_API_KEY` is **invalid**. The live key is in Coolify.
+The local `.env` `GENAI_API_KEY` is **invalid**. The live AI key is entered in the deployed app's Settings.
 
 ## Session 2026-07-22 - full test pass (uncommitted)
 
@@ -75,7 +75,7 @@ session), only its markup/CSS/JS by inspection.
   (`static/llms.txt`) and works through `/api/agent/*` with a bearer key
   (`python -m backend.agent_keys LABEL` prints a token and its `label:sha256`; the hashes go
   in the `PITCREW_AGENT_KEYS` env secret, synced to `agent_keys` at startup, unset = none). Pitcrew makes no
-  confidence-bearing LLM calls; the in-app chat / Doc search (Gemini) is lookup only.
+  confidence-bearing LLM calls; the in-app chat / Doc search is lookup only.
 - Agents write gated parts via `fitment_claims`; `verified` also needs a blind
   `fitment_verifications` row from a different key. Evidence comes only from `sources`
   pitcrew captured itself (`backend/fetch.py`: public https only) or manual pages. The
@@ -85,13 +85,30 @@ session), only its markup/CSS/JS by inspection.
 - `static/llms.txt` is the agent contract: keep it in step with `backend/routes/agent.py`.
 - Tests: `.venv/bin/python -m pytest tests` (pytest is a dev-only venv install, not in requirements.txt).
 
+## AI providers
+
+- `backend/services/ai/` is the only AI layer; routes import from it. `google.genai` is imported only in
+  `gemini_adapter.py` and `openai` only in `openai_adapter.py`. Prompts (`prompts.py`), image prep
+  (`images.py`) and BM25 ranking (`ranking.py`) are provider-neutral. Inputs are neutral too: text
+  strings, `Image`, `PdfFile` (path + cache key, uploaded once) and `PdfBytes`.
+- The provider is resolved per call (`settings.resolve()`): the `ai_settings` row, else env
+  `GENAI_API_KEY` as Gemini (`GEMINI_MODEL` or `gemini-flash-latest`), else 503 "No AI API key set"
+  (`require_ai` dependency on every AI route). The provider comes from the key prefix: `AIza` Gemini,
+  `sk-` OpenAI (default model `gpt-6-astra`).
+- Settings API `GET/PUT/DELETE /api/settings/ai`. PUT checks the key before storing (Gemini: a token count on the model; OpenAI: a model lookup).
+  The key is Fernet-encrypted with an HKDF-SHA256 key from `PITCREW_SECRET_KEY`; saving is refused (409)
+  while that is unset, and a changed secret reads as `unreadable`. No response or log line carries the key.
+- Each adapter declares its PDF limits (`pdf_limits`), which `manuals.py` uses for its page and byte budgets.
+- Gemini answers keep Google's Search Suggestions (`search_suggestions`); OpenAI's are None.
+- Live check against the configured provider: `.venv/bin/python -m backend.services.ai.check`.
+
 ## In-app chat and inventory
 
 - Chat (`backend/routes/chat.py`): logged threads (`chat_threads`, `chat_messages`). Every
-  answer is Gemini + Google Search with `CHAT_SYSTEM_INSTRUCTION` plus `car_contract()` rebuilt
+  answer is the configured AI provider with web search, `CHAT_SYSTEM_INSTRUCTION` plus `car_contract()` rebuilt
   from the DB per message (identity, VIN, colour, confirmed/pending build sheet, parts,
   service log, inventory). Chat answers are research, never fitment evidence.
-- Inventory (`inventory`, garage-wide): a second Gemini call per message extracts adds/removes
+- Inventory (`inventory`, garage-wide): a second AI call per message extracts adds/removes
   from the owner's message and the previous answer, run in parallel with the answer.
   `valid_changes` keeps only changes whose quote is the owner's verbatim words naming the item;
   inferred items must also be named verbatim in the previous answer. Undo is soft delete/restore.
